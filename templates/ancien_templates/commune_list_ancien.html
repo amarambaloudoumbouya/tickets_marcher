@@ -1,0 +1,29 @@
+{% extends "index.html" %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <h1 class="h3">Communes</h1>
+  <a class="btn btn-success" href="{% url 'site_:commune_create' %}">Nouvelle commune</a>
+</div>
+<div class="card">
+  <table class="table mb-0">
+    <thead>
+      <tr>
+        <th>Nom</th>
+        <th>Code</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in object_list %}
+      <tr>
+        <td>{{ o.nom }}</td>
+        <td>{{ o.code }}</td>
+        <td><a href="{% url 'site_:commune_update' o.pk %}">Modifier</a></td>
+      </tr>
+      {% empty %}<tr>
+        <td colspan="3" class="text-muted">Aucune commune</td>
+      </tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

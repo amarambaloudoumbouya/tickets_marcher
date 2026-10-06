@@ -1,0 +1,62 @@
+{% extends "index.html" %}
+{% load humanize %}
+{% block content %}
+{% if messages %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">{{ message }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+<div class="row small-spacing">
+  <div class="col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2 col-xs-12">
+    <div class="box-content card">
+      <h4 class="box-title bg-warning"><i class="ico fa fa-credit-card"></i>Orange Money</h4>
+      <div class="card-content">
+        <p style="margin-bottom:4px;color:#7a869a;">Confirmer le paiement</p>
+        <p style="margin:0 0 16px;font-size:32px;line-height:1.2;font-weight:600;color:#0f2f24;">{{ paiement.montant|intcomma }} GNF</p>
+        <p style="margin-bottom:4px;"><strong>{{ paiement.commercant.nom }}</strong></p>
+        <p style="margin-bottom:16px;color:#7a869a;">{{ paiement.commercant.telephone }} · {{ paiement.marche }}<br>Référence {{ paiement.reference }}</p>
+
+        <table class="table table-striped table-bordered">
+          <thead>
+            <tr>
+              <th>Ticket</th>
+              <th>Montant</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ligne in paiement.lignes.all %}
+            <tr>
+              <td>{{ ligne.ticket.numero }}</td>
+              <td>{{ ligne.montant_affecte|intcomma }} GNF</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="2">Aucun ticket rattaché.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        {% if paiement.statut == 'en_attente' %}
+        <form method="post">{% csrf_token %}
+          <button type="submit" class="btn btn-primary btn-block waves-effect waves-light" name="action" value="confirmer" style="margin-bottom:8px;">Confirmer le paiement</button>
+          <button type="submit" class="btn btn-default btn-block" name="action" value="refuser" style="margin-bottom:8px;">Refuser</button>
+          <button type="submit" class="btn btn-default btn-block" name="action" value="timeout">Simuler un timeout</button>
+        </form>
+        {% else %}
+        <div class="alert alert-info">Statut : {{ paiement.get_statut_display }}</div>
+        {% if paiement.statut == 'succes' %}
+        <a class="btn btn-primary btn-block" href="{% url 'tickets:recu' paiement.mock_token %}">Voir le reçu</a>
+        {% else %}
+        <a class="btn btn-default btn-block" href="{% url 'tickets:payer' %}">Retour au paiement</a>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

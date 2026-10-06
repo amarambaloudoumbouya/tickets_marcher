@@ -1,0 +1,416 @@
+{% load static humanize avatars %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="description" content="">
+  <meta name="author" content="">
+
+  <title>Tableau de bord - Tickets marchés</title>
+
+  <!-- Main Styles -->
+  <link rel="stylesheet" href="{% static 'assets/styles/style.min.css' %}">
+  <style>
+    .main-menu {
+      padding-top: 158px;
+    }
+    .header,
+    .header .logo {
+      height: 158px;
+    }
+    .header .logo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.2;
+      overflow: visible;
+      white-space: normal;
+    }
+    .header .logo .logo-marche {
+      width: 72px;
+      height: 72px;
+      margin-top: 8px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .menu-active .main-menu {
+      padding-top: 50px;
+    }
+    .menu-active .header .logo .logo-marche {
+      display: none;
+    }
+    .navigation .menu a:hover,
+    .navigation .menu a:hover i,
+    .navigation .menu > li.current .current > a {
+      color: #1c6b4a;
+    }
+    .navigation .menu > li.current > a {
+      background: #1c6b4a;
+      color: #ffffff;
+    }
+    .navigation .menu > li.current > a > i,
+    .navigation .menu > li.current > a:hover,
+    .navigation .menu > li.current > a:hover i {
+      color: #ffffff;
+    }
+    .navigation .menu > li.current > a:hover {
+      background: #0f2f24;
+    }
+    .progress-bar {
+      background-color: #1c6b4a;
+    }
+    .btn-primary {
+      background: #0f2f24 !important;
+      border-color: #0f2f24 !important;
+      color: #ffffff !important;
+    }
+    .btn-primary:hover,
+    .btn-primary:active,
+    .btn-primary:focus {
+      background: #1c6b4a !important;
+      border-color: #1c6b4a !important;
+    }
+    .box-content.card .box-title.bg-warning {
+      background-color: #1c6b4a !important;
+      color: #ffffff !important;
+    }
+    .modal {
+      z-index: 3000;
+    }
+    .modal-backdrop {
+      z-index: 2990;
+    }
+  </style>
+
+  <!-- Material Design Icon -->
+  <link rel="stylesheet" href="{% static 'assets/fonts/material-design/css/materialdesignicons.css' %}">
+
+  <!-- mCustomScrollbar -->
+  <link rel="stylesheet" href="{% static 'assets/plugin/mCustomScrollbar/jquery.mCustomScrollbar.min.css' %}">
+
+  <!-- Waves Effect -->
+  <link rel="stylesheet" href="{% static 'assets/plugin/waves/waves.min.css' %}">
+
+  <!-- Sweet Alert -->
+  <link rel="stylesheet" href="{% static 'assets/plugin/sweet-alert/sweetalert.css' %}">
+
+  <!-- Percent Circle -->
+  <link rel="stylesheet" href="{% static 'assets/plugin/percircle/css/percircle.css' %}">
+
+  <!-- Chartist Chart -->
+  <link rel="stylesheet" href="{% static 'assets/plugin/chart/chartist/chartist.min.css' %}">
+
+  <!-- FullCalendar -->
+  <link rel="stylesheet" href="{% static 'assets/plugin/fullcalendar/fullcalendar.min.css' %}">
+  <link rel="stylesheet" href="{% static 'assets/plugin/fullcalendar/fullcalendar.print.css' %}" media='print'>
+
+  <!-- Remodal -->
+	<link rel="stylesheet" href="{% static 'assets/plugin/modal/remodal/remodal.css' %}">
+	<link rel="stylesheet" href="{% static 'assets/plugin/modal/remodal/remodal-default-theme.css' %}">
+
+  <!-- Color Picker -->
+  <link rel="stylesheet" href="{% static 'assets/color-switcher/color-switcher.min.css' %}">
+
+    <!-- Data Tables -->
+    <link rel="stylesheet" href="{% static 'assets/plugin/datatables/media/css/dataTables.bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'assets/plugin/datatables/extensions/Responsive/css/responsive.bootstrap.min.css' %}">
+
+</head>
+
+<body>
+  <!-- Main Menu Section -->
+  <div class="main-menu">
+
+    <header class="header">
+      <a href="{% url 'site_:dashboard' %}" class="logo">Tickets marchés<img src="{% static 'img/logo-marche.png' %}" alt="" class="logo-marche"></a>
+      <button type="button" class="button-close fa fa-times js__menu_close"></button>
+    </header>
+
+    <div class="content">
+
+      <div class="navigation">
+        <ul class="menu js__accordion">
+          {% if user.is_authenticated %}
+          <li class="{% if request.resolver_match.url_name == 'dashboard' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'site_:dashboard' %}"><i class="menu-icon mdi mdi-view-dashboard"></i><span>Tableau de bord</span></a>
+          </li>
+          {% if menu_organisation %}
+          <li class="{% if request.resolver_match.url_name == 'communes' or request.resolver_match.url_name == 'commune_create' or request.resolver_match.url_name == 'commune_update' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'marches:communes' %}"><i class="menu-icon mdi mdi-city"></i><span>Communes</span></a>
+          </li>
+          <li class="{% if request.resolver_match.url_name == 'marches' or request.resolver_match.url_name == 'marche_create' or request.resolver_match.url_name == 'marche_update' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'marches:marches' %}"><i class="menu-icon mdi mdi-store"></i><span>Marchés</span></a>
+          </li>
+          <li class="{% if request.resolver_match.url_name == 'utilisateurs' or request.resolver_match.url_name == 'user_create' or request.resolver_match.url_name == 'user_update' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'site_:utilisateurs' %}"><i class="menu-icon mdi mdi-account-multiple"></i><span>Utilisateurs</span></a>
+          </li>
+          <li class="{% if request.resolver_match.url_name == 'types_place' or request.resolver_match.url_name == 'typeplace_create' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'marches:types_place' %}"><i class="menu-icon mdi mdi-seat-recline-normal"></i><span>Types de place</span></a>
+          </li>
+          <li class="{% if request.resolver_match.url_name == 'tarifs' or request.resolver_match.url_name == 'tarif_create' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'marches:tarifs' %}"><i class="menu-icon mdi mdi-cash"></i><span>Tarifs</span></a>
+          </li>
+          <li class="{% if request.resolver_match.url_name == 'penalite' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'marches:penalite' %}"><i class="menu-icon mdi mdi-alert"></i><span>Pénalité</span></a>
+          </li>
+          {% endif %}
+          {% if menu_collecteur or menu_mairie %}
+          <li class="{% if request.resolver_match.url_name == 'commercants' or request.resolver_match.url_name == 'commercant_create' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'recensement:commercants' %}"><i class="menu-icon mdi mdi-account"></i><span>Commerçants</span></a>
+          </li>
+          <li class="{% if request.resolver_match.url_name == 'places' or request.resolver_match.url_name == 'place_create' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'recensement:places' %}"><i class="menu-icon mdi mdi-map-marker"></i><span>Places</span></a>
+          </li>
+          <li class="{% if request.resolver_match.url_name == 'tickets' or request.resolver_match.url_name == 'ticket_detail' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'tickets:tickets' %}"><i class="menu-icon mdi mdi-ticket"></i><span>Tickets</span></a>
+          </li>
+          <li class="{% if request.resolver_match.url_name == 'impayes' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'tickets:impayes' %}"><i class="menu-icon mdi mdi-cash-usd"></i><span>Impayés</span></a>
+          </li>
+          {% endif %}
+          {% if menu_paiement %}
+          <li class="{% if request.resolver_match.url_name == 'payer' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'tickets:payer' %}"><i class="menu-icon mdi mdi-credit-card"></i><span>Payer</span></a>
+          </li>
+          {% endif %}
+          {% if menu_controleur %}
+          <li class="{% if request.resolver_match.url_name == 'scan' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'tickets:scan' %}"><i class="menu-icon mdi mdi-qrcode"></i><span>Contrôle QR</span></a>
+          </li>
+          {% endif %}
+          {% if menu_cloture %}
+          <li class="{% if request.resolver_match.url_name == 'cloture' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'tickets:cloture' %}"><i class="menu-icon mdi mdi-lock"></i><span>Clôture</span></a>
+          </li>
+          {% endif %}
+          {% if menu_audit %}
+          <li class="{% if request.resolver_match.url_name == 'rapports' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'tickets:rapports' %}"><i class="menu-icon mdi mdi-chart-bar"></i><span>Rapports</span></a>
+          </li>
+          <li class="{% if request.resolver_match.url_name == 'audit' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'tickets:audit' %}"><i class="menu-icon mdi mdi-book-open"></i><span>Journal d’audit</span></a>
+          </li>
+          {% endif %}
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+
+  </div>
+  <!-- End Main Menu Section -->
+
+  <!-- Header Section -->
+  <div class="fixed-navbar">
+    <div class="pull-left">
+      <button type="button" class="menu-mobile-button glyphicon glyphicon-menu-hamburger js__menu_mobile"></button>
+      <h1 class="page-title">Tableau de bord</h1>
+    </div>
+    <div class="pull-left">
+      <h1 class="page-title">Tableau de bord</h1>
+    </div>
+    <div class="pull-right">
+      {% if user.is_authenticated %}
+      <div class="ico-item">
+        <a href="#" class="ico-item fa fa-search js__toggle_open" data-target="#searchform-header"></a>
+        <form method="get" action="{% url 'site_:recherche' %}" id="searchform-header" class="searchform js__toggle{% if request.resolver_match.url_name == 'recherche' %} active{% endif %}">
+          <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Ticket, commerçant, téléphone, place…" class="input-search" aria-label="Recherche">
+          <button class="fa fa-search button-search" type="submit"></button>
+        </form>
+      </div>
+      {% endif %}
+      
+      <div class="ico-item fa fa-arrows-alt js__full_screen"></div>
+      <div class="ico-item toggle-hover js__drop_down ">
+        <span class="fa fa-th js__drop_down_button"></span>
+        <div class="toggle-content">
+          <ul>
+            {% if user.is_authenticated %}
+            <li><a href="{% url 'site_:dashboard' %}"><i class="fa fa-dashboard"></i><span class="txt">Tableau de bord</span></a></li>
+            {% if menu_organisation %}
+            <li><a href="{% url 'marches:communes' %}"><i class="fa fa-building"></i><span class="txt">Communes</span></a></li>
+            <li><a href="{% url 'marches:marches' %}"><i class="fa fa-shopping-basket"></i><span class="txt">Marchés</span></a></li>
+            <li><a href="{% url 'site_:utilisateurs' %}"><i class="fa fa-users"></i><span class="txt">Utilisateurs</span></a></li>
+            <li><a href="{% url 'marches:types_place' %}"><i class="fa fa-th-large"></i><span class="txt">Types de place</span></a></li>
+            <li><a href="{% url 'marches:tarifs' %}"><i class="fa fa-money"></i><span class="txt">Tarifs</span></a></li>
+            <li><a href="{% url 'marches:penalite' %}"><i class="fa fa-exclamation-triangle"></i><span class="txt">Pénalité</span></a></li>
+            {% endif %}
+            {% if menu_collecteur or menu_mairie %}
+            <li><a href="{% url 'recensement:commercants' %}"><i class="fa fa-user"></i><span class="txt">Commerçants</span></a></li>
+            <li><a href="{% url 'recensement:places' %}"><i class="fa fa-map-marker"></i><span class="txt">Places</span></a></li>
+            <li><a href="{% url 'tickets:tickets' %}"><i class="fa fa-ticket"></i><span class="txt">Tickets</span></a></li>
+            <li><a href="{% url 'tickets:impayes' %}"><i class="fa fa-warning"></i><span class="txt">Impayés</span></a></li>
+            {% endif %}
+            {% if menu_paiement %}
+            <li><a href="{% url 'tickets:payer' %}"><i class="fa fa-credit-card"></i><span class="txt">Payer</span></a></li>
+            {% endif %}
+            {% if menu_controleur %}
+            <li><a href="{% url 'tickets:scan' %}"><i class="fa fa-qrcode"></i><span class="txt">Contrôle QR</span></a></li>
+            {% endif %}
+            {% if menu_cloture %}
+            <li><a href="{% url 'tickets:cloture' %}"><i class="fa fa-lock"></i><span class="txt">Clôture</span></a></li>
+            {% endif %}
+            {% if menu_audit %}
+            <li><a href="{% url 'tickets:rapports' %}"><i class="fa fa-bar-chart"></i><span class="txt">Rapports</span></a></li>
+            <li><a href="{% url 'tickets:audit' %}"><i class="fa fa-book"></i><span class="txt">Journal d’audit</span></a></li>
+            {% endif %}
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+      {% if user.is_authenticated %}
+      <a href="#" class="ico-item fa fa-envelope{% if header_messages %} notice-alarm{% endif %} js__toggle_open" data-target="#message-popup"></a>
+      <a href="#" class="ico-item{% if header_notifications %} pulse{% endif %}"><span class="ico-item fa fa-bell{% if header_notifications %} notice-alarm{% endif %} js__toggle_open"
+          data-target="#notification-popup"></span></a>
+      {% endif %}
+      <div class="ico-item">
+        {% if user.is_authenticated %}
+        <img src="{% user_avatar user %}" alt="{{ user.get_full_name|default:user.username }}" class="ico-img">
+        {% endif %}
+        <ul class="sub-ico-item">
+          {% if user.is_authenticated %}
+          <li><a href="{% url 'accounts:profil' %}">Mon profil</a></li>
+          <li><a href="{% url 'accounts:password_change' %}">Changer mon mot de passe</a></li>
+          <li>
+            <form method="post" action="{% url 'accounts:lock' %}" id="lock-form" style="display:none">{% csrf_token %}</form>
+            <a href="{% url 'accounts:lock' %}" onclick="event.preventDefault(); document.getElementById('lock-form').submit();">Verrouiller</a>
+          </li>
+          <li>
+            <form method="post" action="{% url 'accounts:logout' %}" id="logout-form" style="display:none">{% csrf_token %}</form>
+            <a href="{% url 'accounts:logout' %}" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">Déconnexion</a>
+          </li>
+          
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  {% if user.is_authenticated %}
+  
+  <div id="notification-popup" class="notice-popup js__toggle" data-space="50">
+    <h2 class="popup-title">Notifications</h2>
+    <div class="content">
+      <ul class="notice-list">
+        {% for item in header_notifications %}
+        <li>
+          {% if item.url %}<a href="{{ item.url }}">{% else %}<span class="notice-static">{% endif %}
+            <span class="avatar {{ item.tone }}"><i class="fa {{ item.icon }}"></i></span>
+            <span class="name">{{ item.name }}</span>
+            <span class="desc">{{ item.desc }}</span>
+            <span class="time">{{ item.when|naturaltime }}</span>
+          {% if item.url %}</a>{% else %}</span>{% endif %}
+        </li>
+        {% empty %}
+        <li>
+          <span class="name">Aucune notification</span>
+          <span class="desc">Pas d’impayé ni de paiement en attente.</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if header_notifications_plus %}
+      <a href="{{ header_notifications_plus }}" class="notice-read-more">{{ header_notifications_plus_label }} <i class="fa fa-angle-down"></i></a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="message-popup" class="notice-popup js__toggle" data-space="50">
+    <h2 class="popup-title">Messages récents</h2>
+    <div class="content">
+      <ul class="notice-list">
+        {% for item in header_messages %}
+        <li>
+          {% if item.url %}<a href="{{ item.url }}">{% else %}<span class="notice-static">{% endif %}
+            <span class="avatar {{ item.tone }}"><i class="fa {{ item.icon }}"></i></span>
+            <span class="name">{{ item.name }}</span>
+            <span class="desc">{{ item.desc }}</span>
+            <span class="time">{{ item.when|naturaltime }}</span>
+          {% if item.url %}</a>{% else %}</span>{% endif %}
+        </li>
+        {% empty %}
+        <li>
+          <span class="name">Aucune activité</span>
+          <span class="desc">Le journal est vide pour le moment.</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if header_messages_plus %}
+      <a href="{{ header_messages_plus }}" class="notice-read-more">Voir le journal <i class="fa fa-angle-down"></i></a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- End Header Section -->
+
+  <!-- Main Content Section -->
+  <div id="wrapper">
+    <div class="main-content">
+      {% block content %}
+
+      {% endblock %}
+
+      <!-- Footer Section -->
+      <footer class="footer">
+        <ul class="list-inline">
+          <li>2026 © Gestion de tickets(droit de places) journaliers de marchés</li>
+          <li><a href="#">Privacy</a></li>
+          <li><a href="#">Terms</a></li>
+          <li><a href="#">Help</a></li>
+        </ul>
+      </footer>
+      <!-- End Footer Section -->
+
+    </div>
+    <!-- /.main-content -->
+  </div>
+  <!-- End Main Content Section -->
+
+  {% block modals %}{% endblock %}
+
+  <!-- Placed at the end of the document so the pages load faster -->
+  <script src="{% static 'assets/scripts/jquery.min.js' %}"></script>
+  <script src="{% static 'assets/scripts/modernizr.min.js' %}"></script>
+  <script src="{% static 'assets/plugin/bootstrap/js/bootstrap.min.js' %}"></script>
+  <script src="{% static 'assets/plugin/mCustomScrollbar/jquery.mCustomScrollbar.concat.min.js' %}"></script>
+  <script src="{% static 'assets/plugin/nprogress/nprogress.js' %}"></script>
+  <script src="{% static 'assets/plugin/sweet-alert/sweetalert.min.js' %}"></script>
+  <script src="{% static 'assets/plugin/waves/waves.min.js' %}"></script>
+  <!-- Full Screen Plugin -->
+  <script src="{% static 'assets/plugin/fullscreen/jquery.fullscreen-min.js' %}"></script>
+
+  <!-- Google Chart -->
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
+  <!-- chart.js Chart -->
+  <script src="{% static 'assets/plugin/chart/chartjs/Chart.bundle.min.js' %}"></script>
+  <script src="{% static 'assets/scripts/chart.chartjs.init.min.js' %}"></script>
+
+  <!-- FullCalendar -->
+  <script src="{% static 'assets/plugin/moment/moment.js' %}"></script>
+  <script src="{% static 'assets/plugin/fullcalendar/fullcalendar.min.js' %}"></script>
+  <script src="{% static 'assets/scripts/fullcalendar.init.js' %}"></script>
+
+  <!-- Sparkline Chart -->
+  <script src="{% static 'assets/plugin/chart/sparkline/jquery.sparkline.min.js' %}"></script>
+  <script src="{% static 'assets/scripts/chart.sparkline.init.min.js' %}"></script>
+
+  <script src="{% static 'assets/scripts/main.min.js' %}"></script>
+  <script src="{% static 'assets/color-switcher/color-switcher.min.js' %}"></script>
+
+  <!-- Remodal -->
+	<script src="{% static 'assets/plugin/modal/remodal/remodal.min.js' %}"></script>
+
+  <!-- Data Tables -->
+  <script src="{% static 'assets/plugin/datatables/media/js/jquery.dataTables.min.js' %}"></script>
+  <script src="{% static 'assets/plugin/datatables/media/js/dataTables.bootstrap.min.js' %}"></script>
+  <script src="{% static 'assets/plugin/datatables/extensions/Responsive/js/dataTables.responsive.min.js' %}"></script>
+  <script src="{% static 'assets/plugin/datatables/extensions/Responsive/js/responsive.bootstrap.min.js' %}"></script>
+  <script src="{% static 'assets/scripts/datatables.demo.min.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+
+</html>

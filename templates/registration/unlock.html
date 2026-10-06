@@ -1,0 +1,55 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+	<title>Session verrouillée — Tickets marchés</title>
+	<link rel="stylesheet" href="{% static 'assets/styles/style.min.css' %}">
+	<link rel="stylesheet" href="{% static 'assets/plugin/waves/waves.min.css' %}">
+	<style>
+		.login-logo {
+			display: block;
+			width: 92px;
+			height: 92px;
+			margin: 8px auto 6px;
+			border-radius: 50%;
+			object-fit: cover;
+		}
+		.frm-single .frm-submit,
+		.frm-single .frm-submit:hover {
+			background: #0f2f24;
+		}
+		.frm-single .frm-submit:hover {
+			background: #1c6b4a;
+		}
+	</style>
+</head>
+<body>
+<div id="single-wrapper">
+	<form method="post" class="frm-single">
+		{% csrf_token %}
+		<div class="inside">
+			<div class="title"><strong>Tickets</strong> marchés</div>
+			<img src="{% static 'img/logo-marche.png' %}" alt="" class="login-logo">
+			<div class="frm-title">Session verrouillée</div>
+			<p class="text-center text-muted">{{ user.get_full_name|default:user.username }}</p>
+			{% for error in form.password.errors %}<div class="text-danger text-center">{{ error }}</div>{% endfor %}
+			<div class="frm-input">
+				<input type="password" name="password" placeholder="Mot de passe" class="frm-inp" autofocus required>
+				<i class="fa fa-lock frm-ico"></i>
+			</div>
+			<button type="submit" class="frm-submit">Déverrouiller<i class="fa fa-unlock"></i></button>
+			<p class="text-center">
+				<a href="{% url 'accounts:logout' %}" onclick="event.preventDefault(); document.getElementById('logout-lock').submit();">Déconnexion</a>
+			</p>
+		</div>
+	</form>
+	<form method="post" action="{% url 'accounts:logout' %}" id="logout-lock" style="display:none">{% csrf_token %}</form>
+</div>
+<script src="{% static 'assets/scripts/jquery.min.js' %}"></script>
+<script src="{% static 'assets/plugin/bootstrap/js/bootstrap.min.js' %}"></script>
+<script src="{% static 'assets/plugin/waves/waves.min.js' %}"></script>
+<script src="{% static 'assets/scripts/main.min.js' %}"></script>
+</body>
+</html>

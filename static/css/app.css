@@ -1,0 +1,24 @@
+:root {
+  --ink: #0f2f24;
+  --green: #1b7a4e;
+  --green-dark: #145c3a;
+  --sand: #f4efe6;
+  --card: #ffffff;
+}
+body { background: var(--sand); color: var(--ink); font-family: "Segoe UI", system-ui, sans-serif; }
+.navbar-brand { font-weight: 700; letter-spacing: .02em; }
+.sidebar { min-height: calc(100vh - 56px); background: var(--ink); }
+.sidebar a { color: #d7eadf; }
+.sidebar a:hover, .sidebar a.active { color: #fff; background: var(--green); }
+.card { border: 0; box-shadow: 0 8px 24px rgba(15, 47, 36, .08); }
+.stat { border-left: 4px solid var(--green); }
+.badge-emis { background: #6c757d; }
+.badge-paye, .badge-controle { background: var(--green); }
+.badge-impaye { background: #b42318; }
+.badge-regularise { background: #0f6a8a; }
+.badge-annule, .badge-expire { background: #495057; }
+.offline-banner { display: none; }
+body.is-offline .offline-banner { display: block; }
+@media (max-width: 768px) {
+  .sidebar { min-height: auto; }
+}

@@ -1,0 +1,158 @@
+{% extends "index.html" %}
+{% load humanize %}
+{% block content %}
+<style>
+  .rapport-banner {
+    padding: 22px 26px;
+    border-radius: 6px;
+    background: linear-gradient(120deg, #0f2f24 0%, #1c6b4a 100%);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(15, 47, 36, 0.18);
+  }
+  .rapport-banner span {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.75;
+  }
+  .rapport-banner h4 {
+    margin: 0 0 6px;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 600;
+  }
+  .rapport-banner p {
+    margin: 0;
+    font-size: 14px;
+    opacity: 0.92;
+  }
+  .rapport-kpi {
+    text-align: center;
+    padding: 18px 8px;
+  }
+  .rapport-kpi span {
+    display: block;
+    color: #7a869a;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .rapport-kpi strong {
+    display: block;
+    margin-top: 8px;
+    font-size: 26px;
+    line-height: 1.1;
+    color: #0f2f24;
+  }
+</style>
+
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="rapport-banner">
+      <span>Rapport du jour</span>
+      <h4>{{ jour|date:"l d F Y" }}</h4>
+      <p>{% if marche %}{{ marche }}{% else %}Aucun marché sélectionné{% endif %}</p>
+    </div>
+  </div>
+</div> <br>
+
+<div class="row small-spacing">
+  <div class="col-lg-2 col-md-4 col-sm-6 col-xs-12">
+    <div class="box-content rapport-kpi"><span>Émis</span><strong>{{ nb_emis|default:0 }}</strong></div>
+  </div>
+  <div class="col-lg-2 col-md-4 col-sm-6 col-xs-12">
+    <div class="box-content rapport-kpi"><span>Payés</span><strong>{{ nb_payes|default:0 }}</strong></div>
+  </div>
+  <div class="col-lg-2 col-md-4 col-sm-6 col-xs-12">
+    <div class="box-content rapport-kpi"><span>Taux</span><strong>{{ taux|default:0 }}%</strong></div>
+  </div>
+  <div class="col-lg-2 col-md-4 col-sm-6 col-xs-12">
+    <div class="box-content rapport-kpi"><span>Impayés</span><strong>{{ nb_impayes|default:0 }}</strong></div>
+  </div>
+  <div class="col-lg-2 col-md-4 col-sm-6 col-xs-12">
+    <div class="box-content rapport-kpi"><span>Régularisés</span><strong>{{ nb_regularises|default:0 }}</strong></div>
+  </div>
+  <div class="col-lg-2 col-md-4 col-sm-6 col-xs-12">
+    <div class="box-content rapport-kpi"><span>Orange Money</span><strong>{{ montant_om|default:0|intcomma }}</strong></div>
+  </div>
+</div>
+
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="box-content card">
+      <h4 class="box-title bg-warning"><i class="ico fa fa-exclamation-triangle"></i>Pénalités émises aujourd’hui</h4>
+      <div class="card-content">
+        <p style="margin:0;font-size:22px;font-weight:600;color:#0f2f24;">{{ penalites_emises|default:0|intcomma }} GNF</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Émissions par collecteur</h4>
+      <table id="example" class="table table-striped table-bordered display" style="width:100%">
+        <thead>
+          <tr>
+            <th>Collecteur</th>
+            <th>Tickets</th>
+            <th>Montant</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in par_collecteur %}
+          <tr>
+            <td>{{ row.emetteur__username|default:"Système" }}</td>
+            <td>{{ row.nb }}</td>
+            <td>{{ row.montant|intcomma }} GNF</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="3">Aucune émission aujourd’hui.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Dernières clôtures</h4>
+      <table class="table table-striped table-bordered">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Émis</th>
+            <th>Payés</th>
+            <th>Impayés</th>
+            <th>Pénalités</th>
+            <th>Orange Money</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cloture in clotures %}
+          <tr>
+            <td>{{ cloture.date|date:"d/m/Y" }}</td>
+            <td>{{ cloture.tickets_emis }}</td>
+            <td>{{ cloture.tickets_payes }}</td>
+            <td>{{ cloture.tickets_impayes }}</td>
+            <td>{{ cloture.penalites_emises|intcomma }} GNF</td>
+            <td>{{ cloture.montant_om|intcomma }} GNF</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6">Pas encore de clôture.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,314 @@
+{% extends "index.html" %}
+{% load humanize %}
+{% block title %}Tableau de bord{% endblock %}
+{% block content %}
+
+<style>
+  .marche-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding: 22px 26px;
+    border-radius: 6px;
+    background: linear-gradient(120deg, #0f2f24 0%, #1c6b4a 100%);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(15, 47, 36, 0.18);
+  }
+  .marche-kicker {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.75;
+  }
+  .marche-banner h4 {
+    margin: 0 0 6px;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 600;
+  }
+  .marche-banner p {
+    margin: 0;
+    font-size: 14px;
+    opacity: 0.92;
+  }
+  .marche-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.18);
+    font-size: 12px;
+  }
+  .marche-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 6px 6px 6px 14px;
+    border-radius: 28px;
+    background: #fff;
+  }
+  .marche-switch .fa {
+    color: #1c6b4a;
+  }
+  .marche-switch select {
+    min-width: 220px;
+    border: 0;
+    background: transparent;
+    color: #243028;
+    font-size: 14px;
+    outline: none;
+  }
+  .marche-switch button {
+    border: 0;
+    border-radius: 20px;
+    padding: 8px 16px;
+    background: #0f2f24;
+    color: #fff;
+    font-weight: 600;
+  }
+  .marche-switch button:hover {
+    background: #1c6b4a;
+  }
+</style>
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="marche-banner">
+      <div>
+        <span class="marche-kicker">Tableau de bord</span>
+        <h4>{{ jour|date:"l d F Y" }}</h4>
+        <p>
+          {% if marche %}{{ marche }}{% else %}Aucun marché sélectionné{% endif %}
+          {% if cloture %}<span class="marche-badge">Journée clôturée</span>{% endif %}
+        </p>
+      </div>
+      {% if marches %}
+      <form method="post" class="marche-switch">{% csrf_token %}
+        <i class="fa fa-map-marker"></i>
+        <select name="marche_id" aria-label="Choisir un marché">
+          {% for m in marches %}
+          <option value="{{ m.pk }}" {% if marche and m.pk == marche.pk %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit">Afficher</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div><br>
+
+{% if not marche %}
+<div class="alert alert-info">Aucun marché disponible. Créez une commune puis un marché.</div>
+{% else %}
+
+<div class="row small-spacing">
+  <div class="col-sm-6 col-lg-3 col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title text-orange">Tickets du jour</h4>
+      <div class="content widget-stat">
+        <div class="left-content"><i class="fa fa-ticket fa-2x text-orange"></i></div>
+        <div class="right-content">
+          <h2 class="counter text-orange">{{ nb_emis }}</h2>
+          <p class="text text-orange">Émis aujourd’hui</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3 col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title text-info">Payés</h4>
+      <div class="content widget-stat">
+        <div class="left-content"><i class="fa fa-check fa-2x text-info"></i></div>
+        <div class="right-content">
+          <h2 class="counter text-info">{{ nb_payes }}</h2>
+          <p class="text text-info">Payés ou contrôlés</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3 col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title text-success">Impayés</h4>
+      <div class="content widget-stat">
+        <div class="left-content"><i class="fa fa-warning fa-2x text-danger"></i></div>
+        <div class="right-content">
+          <h2 class="counter text-danger">{{ nb_impayes }}</h2>
+          <p class="text text-danger">Stock d’impayés</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3 col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title text-orange">Paiements Orange Money</h4>
+      <div class="content widget-stat">
+        <div class="left-content"><i class="fa fa-money fa-2x text-orange"></i></div>
+        <div class="right-content">
+          <h2 class="counter text-orange">{{ montant_om|intcomma }}</h2>
+          <p class="text text-orange">GNF encaissés aujourd’hui</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row small-spacing">
+  <div class="col-lg-3 col-md-6 col-xs-12">
+    <div class="box-content bg-success text-white">
+      <div class="statistics-box with-icon">
+        <i class="ico small fa fa-line-chart"></i>
+        <p class="text text-white">TAUX DE PAIEMENT</p>
+        <h2 class="counter">{{ taux }}%</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 col-xs-12">
+    <div class="box-content bg-info text-white">
+      <div class="statistics-box with-icon">
+        <i class="ico small fa fa-credit-card"></i>
+        <p class="text text-white">PAIEMENTS DU JOUR</p>
+        <h2 class="counter">{{ nb_paiements }}</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 col-xs-12">
+    <div class="box-content bg-danger text-white">
+      <div class="statistics-box with-icon">
+        <i class="ico small fa fa-ban"></i>
+        <p class="text text-white">ANNULÉS</p>
+        <h2 class="counter">{{ nb_annules }}</h2>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 col-xs-12">
+    <div class="box-content bg-warning text-white">
+      <div class="statistics-box with-icon">
+        <i class="ico small fa fa-lock"></i>
+        <p class="text text-white">CLÔTURE</p>
+        <h2 class="counter">{% if cloture %}Oui{% else %}Non{% endif %}</h2>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row small-spacing">
+  <div class="col-lg-6 col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">{% if detail_personnel %}Vos tickets{% else %}Répartition du jour{% endif %}</h4>
+      <div class="content">
+        {% for ligne in repartition %}
+        <p class="clearfix m-b-0">{{ ligne.label }} <span class="pull-right">{{ ligne.nb }}</span></p>
+        <div class="progress">
+          <div class="progress-bar" data-pct="{{ ligne.pct }}"></div>
+        </div>
+        {% empty %}
+        <p class="text-muted">Aucun ticket pour cette journée.</p>
+        {% endfor %}
+        <script>
+          document.querySelectorAll(".progress-bar[data-pct]").forEach(function (bar) {
+            bar.style.width = bar.getAttribute("data-pct") + "%";
+          });
+        </script>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6 col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Activité</h4>
+      <div class="activity-list">
+        {% for item in header_messages %}
+        <div class="activity-item">
+          <div class="bar bg-primary"><div class="dot bg-primary"></div></div>
+          <div class="content">
+            <div class="date">{{ item.when|naturaltime }}</div>
+            <div class="text">{{ item.name }} {{ item.desc }}</div>
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-muted">Aucune activité récente.</p>
+        {% endfor %}
+      </div>
+      {% if header_messages_plus %}
+      <a href="{{ header_messages_plus }}" class="activity-link">Voir le journal <i class="fa fa-angle-down"></i></a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if tickets_dus %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Solde dû : {{ solde|intcomma }} GNF</h4>
+      <a class="btn btn-success" href="{% url 'tickets:payer' %}">Payer via Orange Money</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row small-spacing">
+  <div class="col-lg-5 col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Derniers tickets</h4>
+      <div class="review-list">
+        {% for ticket in tickets_recents %}
+        <div class="review-item">
+          <div class="top">
+            <div class="name">{{ ticket.commercant.nom }}</div>
+            <div class="date">{{ ticket.get_statut_display }}</div>
+          </div>
+          <div class="desc">
+            <a href="{% url 'tickets:ticket_detail' ticket.pk %}">{{ ticket.numero }}</a>
+            — {{ ticket.montant|intcomma }} GNF
+            {% if ticket.place %} · {{ ticket.place.code }}{% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-muted">Aucun ticket.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7 col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Paiements</h4>
+      <table class="table table-striped margin-bottom-10">
+        <thead>
+          <tr>
+            <th>Commerçant</th>
+            <th>Montant</th>
+            <th>Date</th>
+            <th>État</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for paiement in paiements_recents %}
+          <tr>
+            <td>{{ paiement.commercant.nom }}</td>
+            <td>{{ paiement.montant|intcomma }} GNF</td>
+            <td>{{ paiement.created_at|date:"d/m/Y H:i" }}</td>
+            <td class="{% if paiement.statut == 'succes' %}text-success{% elif paiement.statut == 'en_attente' %}text-warning{% else %}text-danger{% endif %}">{{ paiement.get_statut_display }}</td>
+            <td>
+              {% if paiement.statut == 'succes' %}
+              <a href="{% url 'tickets:recu' paiement.mock_token %}"><i class="fa fa-plus-circle"></i></a>
+              {% elif menu_paiement %}
+              <a href="{% url 'tickets:payer' %}?commercant={{ paiement.commercant_id }}"><i class="fa fa-plus-circle"></i></a>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-muted">Aucun paiement.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

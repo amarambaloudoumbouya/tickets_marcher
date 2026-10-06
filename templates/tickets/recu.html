@@ -1,0 +1,31 @@
+{% extends "index.html" %}
+{% load humanize %}
+{% block content %}
+<div class="row small-spacing">
+  <div class="col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2 col-xs-12">
+    <div class="box-content card">
+      <h4 class="box-title bg-warning"><i class="ico fa fa-check"></i>Reçu Orange Money</h4>
+      <div class="card-content" style="text-align:center;">
+        <p style="margin-bottom:4px;color:#1c6b4a;font-weight:600;">Paiement confirmé</p>
+        <p style="margin:0 0 8px;font-size:32px;line-height:1.2;font-weight:600;color:#0f2f24;">{{ paiement.montant|intcomma }} GNF</p>
+        <p style="margin-bottom:4px;"><strong>{{ paiement.commercant.nom }}</strong></p>
+        <p style="margin-bottom:20px;color:#7a869a;">
+          {{ paiement.commercant.telephone }} · {{ paiement.marche }}<br>
+          Référence {{ paiement.reference }}<br>
+          {{ paiement.confirmed_at|date:"d/m/Y H:i" }}
+        </p>
+
+        {% for ligne in paiement.lignes.all %}
+        <div style="margin-bottom:16px;padding:14px;border:1px solid #e6eaef;border-radius:4px;">
+          <p style="margin:0 0 4px;font-weight:600;">{{ ligne.ticket.numero }}</p>
+          <p style="margin:0 0 10px;color:#7a869a;">{{ ligne.ticket.get_statut_display }} · {{ ligne.montant_affecte|intcomma }} GNF</p>
+          <img src="{% url 'tickets:ticket_qr' ligne.ticket.pk %}" alt="QR {{ ligne.ticket.numero }}" style="max-width:160px;">
+        </div>
+        {% endfor %}
+
+        <a class="btn btn-primary btn-block waves-effect waves-light" href="{% url 'site_:dashboard' %}">Retour au tableau de bord</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "index.html" %}
+{% load humanize %}
+{% block content %}
+<style>
+  .scan-ok { color: #fff !important; background: #1c6b4a !important; }
+  .scan-ko { color: #fff !important; background: #ea4335 !important; }
+</style>
+<div class="row small-spacing">
+  <div class="col-md-8 col-md-offset-2 col-xs-12">
+    <div class="box-content card">
+      <h4 class="box-title bg-warning"><i class="ico fa fa-qrcode"></i>Contrôle QR</h4>
+      <div class="card-content">
+        <p style="color:#7a869a;">Scannez le QR du ticket, ou saisissez son numéro.</p>
+        <form method="post">{% csrf_token %}
+          <label for="id_payload">QR ou numéro</label>
+          {{ form.payload }}
+          {% if form.payload.errors %}<p style="color:#ea4335;">{{ form.payload.errors|striptags }}</p>{% endif %}
+          <button type="submit" class="btn btn-primary btn-block waves-effect waves-light" style="margin-top:12px;">Vérifier</button>
+        </form>
+        <div id="reader" style="margin-top:18px;overflow:hidden;border-radius:4px;background:#0f2f24;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if resultat %}
+{% with r=resultat.resultat %}
+<div class="row small-spacing">
+  <div class="col-md-8 col-md-offset-2 col-xs-12">
+    <div class="box-content card">
+      <h4 class="box-title {% if r == 'valide' or r == 'deja_controle' %}scan-ok{% else %}scan-ko{% endif %}">
+        <i class="ico fa {% if r == 'valide' or r == 'deja_controle' %}fa-check{% else %}fa-times{% endif %}"></i>{{ resultat.message }}
+      </h4>
+      {% if resultat.ticket %}
+      <div class="card-content">
+        <p style="margin-bottom:4px;font-size:20px;font-weight:600;color:#0f2f24;">{{ resultat.ticket.numero }}</p>
+        <p style="margin-bottom:16px;color:#7a869a;">{{ resultat.ticket.commercant }} · {{ resultat.ticket.get_statut_display }}</p>
+        <table class="table table-striped table-bordered">
+          <thead>
+            <tr>
+              <th>Tarif</th>
+              <th>Pénalité</th>
+              <th>Dû</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{{ resultat.ticket.montant|intcomma }} GNF</td>
+              <td>{{ resultat.ticket.montant_penalite|intcomma }} GNF</td>
+              <td>{{ resultat.ticket.montant_du|intcomma }} GNF</td>
+            </tr>
+          </tbody>
+        </table>
+        <a class="btn btn-default" href="{% url 'tickets:ticket_detail' resultat.ticket.pk %}">Voir le ticket</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endwith %}
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+  const input = document.querySelector('[name=payload]');
+  if (window.Html5Qrcode && input) {
+    const r = new Html5Qrcode('reader');
+    Html5Qrcode.getCameras().then(function (cams) {
+      if (!cams.length) return;
+      r.start({ facingMode: 'environment' }, { fps: 8, qrbox: 220 }, function (text) {
+        input.value = text;
+        input.form.submit();
+        r.stop();
+      });
+    }).catch(function () {});
+  }
+</script>
+{% endblock %}

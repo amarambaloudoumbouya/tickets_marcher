@@ -1,0 +1,74 @@
+{% extends "index.html" %}
+{% load humanize %}
+{% block content %}
+{% if messages %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">{{ message }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+<div class="row small-spacing">
+  <div class="col-md-8 col-md-offset-2 col-xs-12">
+    <div class="box-content card">
+      <h4 class="box-title bg-warning"><i class="ico fa fa-credit-card"></i>Payer via Orange Money</h4>
+      <div class="card-content">
+        <p style="color:#7a869a;">Aucun encaissement en espèces. Le collecteur n’a pas d’argent dans les mains.</p>
+
+        {% if user.role != 'commercant' %}
+        <form method="get" style="margin-bottom:20px;">
+          <label for="commercant">Commerçant</label>
+          <select id="commercant" name="commercant" class="form-control" onchange="this.form.submit()">
+            <option value="">Choisir un commerçant</option>
+            {% for c in commercants %}
+            <option value="{{ c.pk }}" {% if commercant and c.pk == commercant.pk %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </form>
+        {% endif %}
+
+        {% if commercant %}
+        <p style="margin-bottom:4px;"><strong>{{ commercant.nom }}</strong> · {{ commercant.telephone }}</p>
+        <p style="margin:0 0 16px;font-size:32px;line-height:1.2;font-weight:600;color:#0f2f24;">{{ solde|intcomma }} GNF</p>
+
+        <table class="table table-striped table-bordered">
+          <thead>
+            <tr>
+              <th>Ticket</th>
+              <th>Jour</th>
+              <th>Statut</th>
+              <th>Dû</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ticket in tickets_dus %}
+            <tr>
+              <td><a href="{% url 'tickets:ticket_detail' ticket.pk %}">{{ ticket.numero }}</a></td>
+              <td>{{ ticket.date_validite|date:"d/m/Y" }}</td>
+              <td>{{ ticket.get_statut_display }}</td>
+              <td>{{ ticket.montant_du|intcomma }} GNF</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4">Rien à payer.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        {% if solde %}
+        <form method="post">{% csrf_token %}
+          <input type="hidden" name="commercant" value="{{ commercant.pk }}">
+          <button type="submit" class="btn btn-primary btn-block waves-effect waves-light">Payer {{ solde|intcomma }} GNF</button>
+        </form>
+        {% endif %}
+        {% elif user.role == 'commercant' %}
+        <p>Aucune fiche commerçant n’est liée à ce compte.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

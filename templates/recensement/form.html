@@ -1,0 +1,27 @@
+{% extends "index.html" %}
+{% load crispy_forms_tags %}
+{% block content %}
+{% if messages %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">{{ message }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+<div class="row small-spacing">
+  <div class="col-md-8 col-md-offset-2 col-xs-12">
+    <div class="box-content card">
+      <h4 class="box-title bg-warning"><i class="ico fa fa-pencil"></i>{{ titre|default:"Formulaire" }}</h4>
+      <div class="card-content">
+        <form method="post" enctype="multipart/form-data">{% csrf_token %}
+          {{ form|crispy }}
+          <button type="submit" class="btn btn-primary waves-effect waves-light">Enregistrer</button>
+          <a class="btn btn-default" href="javascript:history.back()">Annuler</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "index.html" %}
+{% load crispy_forms_tags avatars %}
+{% block content %}
+<div class="row small-spacing">
+  <div class="col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2 col-xs-12">
+    <div class="box-content card">
+      <h4 class="box-title bg-warning"><i class="ico fa fa-user"></i>Mon profil</h4>
+      <div class="card-content">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <img src="{% user_avatar user %}" alt="" style="width:48px;height:48px;border-radius:50%;">
+          <div>
+            <strong>{{ user.get_full_name|default:user.username }}</strong>
+            <div style="color:#7a869a;">{{ user.get_role_display }}{% if user.marche %} · {{ user.marche }}{% elif user.commune %} · {{ user.commune }}{% endif %}</div>
+          </div>
+        </div>
+        {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">{{ message }}</div>
+        {% endfor %}
+        <form method="post">{% csrf_token %}
+          {{ form|crispy }}
+          <button type="submit" class="btn btn-primary waves-effect waves-light">Enregistrer</button>
+          <a class="btn btn-default" href="{% url 'accounts:password_change' %}">Changer mon mot de passe</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

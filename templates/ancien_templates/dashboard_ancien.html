@@ -1,0 +1,58 @@
+{% extends "index.html" %}
+{% load humanize %}
+{% block title %}Tableau de bord{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-0">Tableau de bord</h1>
+    <p class="text-muted mb-0">{{ jour }} {% if marche %}· {{ marche }}{% endif %}</p>
+  </div>
+  {% if marches %}
+  <form method="post" class="d-flex gap-2">{% csrf_token %}
+    <select name="marche_id" class="form-select">
+      {% for m in marches %}
+      <option value="{{ m.pk }}" {% if marche and m.pk==marche.pk %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-outline-success">OK</button>
+  </form>
+  {% endif %}
+</div>
+{% if not marche %}
+<div class="alert alert-info">Aucun marché disponible. Créez une commune puis un marché.</div>
+{% else %}
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card p-3 stat">
+      <div class="text-muted">Tickets du jour</div>
+      <div class="h3">{{ nb_emis }}</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3 stat">
+      <div class="text-muted">Payés à l’heure</div>
+      <div class="h3">{{ nb_payes }}</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3 stat">
+      <div class="text-muted">Impayés (stock)</div>
+      <div class="h3">{{ nb_impayes }}</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card p-3 stat">
+      <div class="text-muted">Orange Money aujourd’hui</div>
+      <div class="h3">{{ montant_om|intcomma }} <small>GNF</small></div>
+    </div>
+  </div>
+</div>
+{% if cloture %}<div class="alert alert-success">Journée déjà clôturée.</div>{% endif %}
+{% if tickets_dus %}
+<div class="card p-3">
+  <h2 class="h5">Votre solde dû : {{ solde|intcomma }} GNF</h2>
+  <a class="btn btn-success" href="{% url 'site_:payer' %}">Payer via Orange Money</a>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

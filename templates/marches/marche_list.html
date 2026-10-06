@@ -1,0 +1,135 @@
+{% extends "index.html" %}
+{% load crispy_forms_tags %}
+{% block content %}
+{% if messages %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">{{ message }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+<div class="col-lg-12 col-md-12 col-xs-12">
+  <div class="box-content card">
+    <h4 class="box-title bg-warning"><i class="ico fa fa-shopping-basket"></i>Marchés</h4>
+
+    <div class="card-content">
+      <button type="button" class="btn btn-primary margin-bottom-10 waves-effect waves-light" data-toggle="modal" data-target="#boostrapModal-1">Nouveau marché</button>
+    </div>
+  </div>
+</div>
+
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Liste des marchés</h4>
+
+      <table id="example" class="table table-striped table-bordered display" style="width:100%">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Commune</th>
+            <th>Adresse</th>
+            <th>Active</th>
+            <th>Créé le</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for marche in object_list %}
+          <tr>
+            <td>{{ marche.nom }}</td>
+            <td>{{ marche.commune }}</td>
+            <td>{{ marche.adresse|default:"—" }}</td>
+            <td>{% if marche.active %}Oui{% else %}Non{% endif %}</td>
+            <td>{{ marche.created_at|date:"d/m/Y" }}</td>
+            <td>
+              <a href="{% url 'marches:marche_update' marche.pk %}" class="btn btn-primary btn-sm" title="Modifier"><i class="fa fa-pencil"></i></a>
+              <form method="post" action="{% url 'marches:marche_supprimer' marche.pk %}" style="display:inline">{% csrf_token %}
+                <button type="submit" class="btn btn-link btn-sm" title="Supprimer" style="color:#ea4335"><i class="fa fa-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6">Aucun marché.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if suppressions %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Suppressions en attente</h4>
+      <p>Ces marchés ont disparu de la liste. Validez la suppression, ou récupérez-les s'ils doivent rester.</p>
+      <table class="table table-striped table-bordered">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Commune</th>
+            <th>Demandée le</th>
+            <th>Par</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for marche in suppressions %}
+          <tr>
+            <td>{{ marche.nom }}</td>
+            <td>{{ marche.commune }}</td>
+            <td>{{ marche.suppression_demandee_le|date:"d/m/Y H:i" }}</td>
+            <td>{{ marche.suppression_demandee_par }}</td>
+            <td>
+              <form method="post" action="{% url 'marches:marche_recuperer' marche.pk %}" style="display:inline">{% csrf_token %}
+                <button type="submit" class="btn btn-default btn-sm" title="Récupérer"><i class="fa fa-undo"></i></button>
+              </form>
+              <form method="post" action="{% url 'marches:marche_valider_suppression' marche.pk %}" style="display:inline" onsubmit="return confirm('Supprimer définitivement ce marché ?');">{% csrf_token %}
+                <button type="submit" class="btn btn-primary btn-sm" title="Valider la suppression"><i class="fa fa-check"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="boostrapModal-1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<form method="post" action="{% url 'marches:marches' %}">{% csrf_token %}
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal" aria-label="Fermer"><span aria-hidden="true">&times;</span></button>
+					<h4 class="modal-title" id="myModalLabel">Nouveau marché</h4>
+				</div>
+				<div class="modal-body">
+					{{ form|crispy }}
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-default btn-sm waves-effect waves-light" data-dismiss="modal">Annuler</button>
+					<button type="submit" class="btn btn-primary btn-sm waves-effect waves-light">Enregistrer</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+{% if ouvrir_modal %}
+<script>
+	document.addEventListener('DOMContentLoaded', function () {
+		if (window.jQuery) {
+			jQuery('#boostrapModal-1').modal('show');
+		}
+	});
+</script>
+{% endif %}
+{% endblock %}
