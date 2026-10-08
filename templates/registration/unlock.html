@@ -31,7 +31,7 @@
 		{% csrf_token %}
 		<div class="inside">
 			<div class="title"><strong>Tickets</strong> marchés</div>
-			<img src="{% static 'img/logo-marche.png' %}" alt="" class="login-logo">
+			<img src="{% static 'assets/img/logo-marche.png' %}" alt="" class="login-logo">
 			<div class="frm-title">Session verrouillée</div>
 			<p class="text-center text-muted">{{ user.get_full_name|default:user.username }}</p>
 			{% for error in form.password.errors %}<div class="text-danger text-center">{{ error }}</div>{% endfor %}

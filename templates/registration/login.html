@@ -42,7 +42,7 @@
 		{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 		<div class="inside">
 			<div class="title"><strong>Tickets</strong> marchés</div>
-			<img src="{% static 'img/logo-marche.png' %}" alt="Marché" class="login-logo">
+			<img src="{% static 'assets/img/logo-marche.png' %}" alt="Marché" class="login-logo">
 			<div class="frm-title">Connexion</div>
 			{% if form.non_field_errors %}
 			<div class="alert alert-danger">{{ form.non_field_errors }}</div>
@@ -71,7 +71,6 @@
 	<script src="{% static 'assets/plugin/bootstrap/js/bootstrap.min.js' %}"></script>
 	<script src="{% static 'assets/plugin/nprogress/nprogress.js' %}"></script>
 	<script src="{% static 'assets/plugin/waves/waves.min.js' %}"></script>
-
 	<script src="{% static 'assets/scripts/main.min.js' %}"></script>
 </body>
 </html>
