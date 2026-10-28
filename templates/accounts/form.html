@@ -24,4 +24,20 @@
     </div>
   </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var role = document.getElementById('id_role');
+  var marche = document.getElementById('div_id_marche');
+  if (!role || !marche) return;
+  function maj() {
+    var input = marche.querySelector('select');
+    if (!input) return;
+    var masquer = role.value === 'maire';
+    marche.style.display = masquer ? 'none' : '';
+    input.required = !masquer;
+  }
+  role.addEventListener('change', maj);
+  maj();
+});
+</script>
 {% endblock %}

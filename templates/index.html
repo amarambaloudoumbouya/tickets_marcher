@@ -138,16 +138,22 @@
           <li class="{% if request.resolver_match.url_name == 'dashboard' %}current{% endif %}">
             <a class="waves-effect" href="{% url 'site_:dashboard' %}"><i class="menu-icon mdi mdi-view-dashboard"></i><span>Tableau de bord</span></a>
           </li>
-          {% if menu_organisation %}
+          {% if menu_communes %}
           <li class="{% if request.resolver_match.url_name == 'communes' or request.resolver_match.url_name == 'commune_create' or request.resolver_match.url_name == 'commune_update' %}current{% endif %}">
             <a class="waves-effect" href="{% url 'marches:communes' %}"><i class="menu-icon mdi mdi-city"></i><span>Communes</span></a>
           </li>
+          {% endif %}
+          {% if menu_marches %}
           <li class="{% if request.resolver_match.url_name == 'marches' or request.resolver_match.url_name == 'marche_create' or request.resolver_match.url_name == 'marche_update' %}current{% endif %}">
             <a class="waves-effect" href="{% url 'marches:marches' %}"><i class="menu-icon mdi mdi-store"></i><span>Marchés</span></a>
           </li>
+          {% endif %}
+          {% if menu_utilisateurs %}
           <li class="{% if request.resolver_match.url_name == 'utilisateurs' or request.resolver_match.url_name == 'user_create' or request.resolver_match.url_name == 'user_update' %}current{% endif %}">
             <a class="waves-effect" href="{% url 'site_:utilisateurs' %}"><i class="menu-icon mdi mdi-account-multiple"></i><span>Utilisateurs</span></a>
           </li>
+          {% endif %}
+          {% if menu_parametres %}
           <li class="{% if request.resolver_match.url_name == 'types_place' or request.resolver_match.url_name == 'typeplace_create' %}current{% endif %}">
             <a class="waves-effect" href="{% url 'marches:types_place' %}"><i class="menu-icon mdi mdi-seat-recline-normal"></i><span>Types de place</span></a>
           </li>
@@ -209,9 +215,9 @@
       <button type="button" class="menu-mobile-button glyphicon glyphicon-menu-hamburger js__menu_mobile"></button>
       <h1 class="page-title">Tableau de bord</h1>
     </div>
-    <div class="pull-left">
+    <!-- <div class="pull-left">
       <h1 class="page-title">Tableau de bord</h1>
-    </div>
+    </div> -->
     <div class="pull-right">
       {% if user.is_authenticated %}
       <div class="ico-item">
@@ -230,10 +236,16 @@
           <ul>
             {% if user.is_authenticated %}
             <li><a href="{% url 'site_:dashboard' %}"><i class="fa fa-dashboard"></i><span class="txt">Tableau de bord</span></a></li>
-            {% if menu_organisation %}
+            {% if menu_communes %}
             <li><a href="{% url 'marches:communes' %}"><i class="fa fa-building"></i><span class="txt">Communes</span></a></li>
+            {% endif %}
+            {% if menu_marches %}
             <li><a href="{% url 'marches:marches' %}"><i class="fa fa-shopping-basket"></i><span class="txt">Marchés</span></a></li>
+            {% endif %}
+            {% if menu_utilisateurs %}
             <li><a href="{% url 'site_:utilisateurs' %}"><i class="fa fa-users"></i><span class="txt">Utilisateurs</span></a></li>
+            {% endif %}
+            {% if menu_parametres %}
             <li><a href="{% url 'marches:types_place' %}"><i class="fa fa-th-large"></i><span class="txt">Types de place</span></a></li>
             <li><a href="{% url 'marches:tarifs' %}"><i class="fa fa-money"></i><span class="txt">Tarifs</span></a></li>
             <li><a href="{% url 'marches:penalite' %}"><i class="fa fa-exclamation-triangle"></i><span class="txt">Pénalité</span></a></li>

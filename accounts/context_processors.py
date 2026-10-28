@@ -39,20 +39,31 @@ def role_menu(request):
     menu_mairie = role in {
         Role.ADMIN_GENERAL,
         Role.ADMIN_COMMUNE,
+        Role.ADMIN_MARCHE,
         Role.MAIRE,
         Role.REGISSEUR,
     } or user.is_admin_general
-    menu_collecteur = role in {Role.COLLECTEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
-    menu_controleur = role in {Role.CONTROLEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
-    menu_audit = role in {Role.REGISSEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.MAIRE}
+    menu_collecteur = role in {Role.COLLECTEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE}
+    menu_controleur = role in {Role.CONTROLEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE}
+    menu_audit = role in {Role.REGISSEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.MAIRE}
     voit_tickets = menu_collecteur or menu_mairie or menu_controleur or role == Role.COMMERCANT
+    menu_communes = user.is_admin_general
+    menu_marches = user.is_admin_general or role == Role.ADMIN_COMMUNE
+    menu_utilisateurs = user.is_admin_general or role in {Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE}
+    menu_parametres = user.is_admin_general or role in {Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE}
     return {
         'menu_mairie': menu_mairie,
-        'menu_organisation': role in {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE} or user.is_admin_general,
+        'menu_organisation': menu_communes or menu_marches or menu_utilisateurs or menu_parametres,
+        'menu_communes': menu_communes,
+        'menu_marches': menu_marches,
+        'menu_utilisateurs': menu_utilisateurs,
+        'menu_parametres': menu_parametres,
         'menu_collecteur': menu_collecteur,
         'menu_controleur': menu_controleur,
-        'menu_paiement': role in {Role.COMMERCANT, Role.COLLECTEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE},
-        'menu_cloture': role in {Role.REGISSEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE},
+        'menu_paiement': role in {
+            Role.COMMERCANT, Role.COLLECTEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE,
+        },
+        'menu_cloture': role in {Role.REGISSEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE},
         'menu_audit': menu_audit,
         'header_notifications': _notifications(user),
         'header_messages': _messages(user, menu_audit),
@@ -110,7 +121,9 @@ def _notifications(user):
             icon, tone = 'fa-clock-o', 'bg-info'
         else:
             icon, tone = 'fa-times', 'bg-danger'
-        peut_payer = user.is_admin_general or user.role in {Role.ADMIN_COMMUNE, Role.COLLECTEUR, Role.COMMERCANT}
+        peut_payer = user.is_admin_general or user.role in {
+            Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.COLLECTEUR, Role.COMMERCANT,
+        }
         items.append({
             'when': paiement.created_at,
             'name': paiement.commercant.nom,

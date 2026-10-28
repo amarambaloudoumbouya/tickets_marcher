@@ -15,7 +15,11 @@
     <h4 class="box-title bg-warning"><i class="ico fa fa-shopping-basket"></i>Marchés</h4>
 
     <div class="card-content">
+      {% if peut_creer %}
       <button type="button" class="btn btn-primary margin-bottom-10 waves-effect waves-light" data-toggle="modal" data-target="#boostrapModal-1">Nouveau marché</button>
+      {% else %}
+      <p>Les marchés sont créés par l’administrateur de chaque commune. Vous validez ici les suppressions demandées.</p>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -45,10 +49,12 @@
             <td>{% if marche.active %}Oui{% else %}Non{% endif %}</td>
             <td>{{ marche.created_at|date:"d/m/Y" }}</td>
             <td>
+              {% if peut_creer %}
               <a href="{% url 'marches:marche_update' marche.pk %}" class="btn btn-primary btn-sm" title="Modifier"><i class="fa fa-pencil"></i></a>
               <form method="post" action="{% url 'marches:marche_supprimer' marche.pk %}" style="display:inline">{% csrf_token %}
                 <button type="submit" class="btn btn-link btn-sm" title="Supprimer" style="color:#ea4335"><i class="fa fa-trash"></i></button>
               </form>
+              {% endif %}
             </td>
           </tr>
           {% empty %}
@@ -104,6 +110,7 @@
 {% endblock %}
 
 {% block modals %}
+{% if peut_creer %}
 <div class="modal fade" id="boostrapModal-1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
 	<div class="modal-dialog" role="document">
 		<div class="modal-content">
@@ -131,5 +138,6 @@
 		}
 	});
 </script>
+{% endif %}
 {% endif %}
 {% endblock %}

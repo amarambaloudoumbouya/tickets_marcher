@@ -6,22 +6,23 @@ from accounts.models import Role
 from marches.models import Marche
 
 
-ROLES_MAIRIE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.MAIRE, Role.REGISSEUR}
-ROLES_BACKOFFICE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.REGISSEUR, Role.MAIRE}
-ROLES_COLLECTE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.COLLECTEUR}
-ROLES_CONTROLE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.CONTROLEUR}
-ROLES_CLOTURE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.REGISSEUR}
-ROLES_PENALITE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.REGISSEUR}
+ROLES_MAIRIE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.MAIRE, Role.REGISSEUR}
+ROLES_BACKOFFICE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.REGISSEUR, Role.MAIRE}
+ROLES_COLLECTE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.COLLECTEUR}
+ROLES_CONTROLE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.CONTROLEUR}
+ROLES_CLOTURE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.REGISSEUR}
+ROLES_PENALITE = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.REGISSEUR}
 
 
 class RoleRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
     allowed_roles = ()
+    autoriser_admin_general = True
 
     def test_func(self):
         user = self.request.user
         if not user.is_authenticated:
             return False
-        if user.is_admin_general:
+        if self.autoriser_admin_general and user.is_admin_general:
             return True
         return user.role in self.allowed_roles
 

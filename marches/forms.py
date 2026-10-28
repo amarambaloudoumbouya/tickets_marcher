@@ -1,6 +1,7 @@
 from django import forms
 from django.db.models import Q
 
+from accounts.models import Role
 from marches.models import Commune, Marche, PenaliteParametre, Tarif, TypePlace
 
 
@@ -17,15 +18,27 @@ class MarcheForm(forms.ModelForm):
 
     def __init__(self, *args, editor=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.editor = editor
         visibles = Commune.objects.filter(suppression_demandee_le__isnull=True)
         if self.instance.commune_id:
             visibles = Commune.objects.filter(
                 Q(suppression_demandee_le__isnull=True) | Q(pk=self.instance.commune_id)
             )
         self.fields['commune'].queryset = visibles
-        if editor and not editor.is_admin_general:
+        if editor and editor.role == Role.ADMIN_COMMUNE:
             self.fields['commune'].queryset = Commune.objects.filter(pk=editor.commune_id)
             self.fields['commune'].initial = editor.commune_id
+            self.fields['commune'].widget = forms.HiddenInput()
+
+    def clean(self):
+        cleaned = super().clean()
+        editor = getattr(self, 'editor', None)
+        if editor and editor.role == Role.ADMIN_COMMUNE:
+            if not editor.commune_id:
+                raise forms.ValidationError('Votre compte n’est rattaché à aucune commune.')
+            self.errors.pop('commune', None)
+            cleaned['commune'] = editor.commune
+        return cleaned
 
 
 class TypePlaceForm(forms.ModelForm):

@@ -13,7 +13,8 @@
   <div class="box-content card">
     <h4 class="box-title bg-warning"><i class="ico fa fa-users"></i>Utilisateurs</h4>
     <div class="card-content">
-      <a class="btn btn-primary margin-bottom-10 waves-effect waves-light" href="{% url 'site_:user_create' %}">Nouvel utilisateur</a>
+      {% if consigne %}<p>{{ consigne }}</p>{% endif %}
+      <a class="btn btn-primary margin-bottom-10 waves-effect waves-light" href="{% url 'site_:user_create' %}">{{ libelle_creation|default:"Nouvel utilisateur" }}</a>
     </div>
   </div>
 </div>
@@ -29,6 +30,7 @@
             <th>Nom</th>
             <th>Téléphone</th>
             <th>Rôle</th>
+            <th>Commune</th>
             <th>Marché</th>
             <th></th>
           </tr>
@@ -40,14 +42,17 @@
             <td>{{ personne.get_full_name|default:"—" }}</td>
             <td>{{ personne.telephone }}</td>
             <td>{{ personne.get_role_display }}</td>
+            <td>{{ personne.commune|default:"—" }}</td>
             <td>{{ personne.marche|default:"—" }}</td>
             <td>
+              {% if personne.role in roles_gerables %}
               <a href="{% url 'site_:user_update' personne.pk %}" class="btn btn-primary btn-sm" title="Modifier"><i class="fa fa-pencil"></i></a>
+              {% endif %}
             </td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="6">Aucun utilisateur.</td>
+            <td colspan="7">Aucun utilisateur.</td>
           </tr>
           {% endfor %}
         </tbody>

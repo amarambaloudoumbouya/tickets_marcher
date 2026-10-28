@@ -38,7 +38,7 @@ class Command(BaseCommand):
                     'commune': commune,
                     'marche': marche,
                     'first_name': extra.get('first_name', username),
-                    'is_staff': role in {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE},
+                    'is_staff': role in {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE},
                     'is_superuser': role == Role.ADMIN_GENERAL,
                 },
             )
@@ -49,6 +49,7 @@ class Command(BaseCommand):
 
         admin = user('admin', Role.ADMIN_GENERAL, '620000001', first_name='Admin')
         user('admin_madina', Role.ADMIN_COMMUNE, '620000002', commune=kaloum, first_name='Admin Madina')
+        user('admin_marche', Role.ADMIN_MARCHE, '620000007', commune=kaloum, marche=madina, first_name='Admin Marché')
         user('collecteur', Role.COLLECTEUR, '620000003', commune=kaloum, marche=madina, first_name='Collecteur')
         user('controleur', Role.CONTROLEUR, '620000004', commune=kaloum, marche=madina, first_name='Contrôleur')
         user('regisseur', Role.REGISSEUR, '620000005', commune=kaloum, marche=madina, first_name='Régisseur')

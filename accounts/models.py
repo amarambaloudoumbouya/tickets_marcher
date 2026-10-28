@@ -6,10 +6,21 @@ class Role(models.TextChoices):
     ADMIN_GENERAL = 'admin_general', 'Admin général'
     ADMIN_COMMUNE = 'admin_commune', 'Admin commune'
     MAIRE = 'maire', 'Maire'
+    ADMIN_MARCHE = 'admin_marche', 'Admin marché'
     COLLECTEUR = 'collecteur', 'Collecteur'
     CONTROLEUR = 'controleur', 'Contrôleur'
     REGISSEUR = 'regisseur', 'Régisseur'
     COMMERCANT = 'commercant', 'Commerçant'
+
+
+ROLES_COMMUNE = frozenset({Role.ADMIN_COMMUNE, Role.MAIRE})
+ROLES_MEMBRES_MARCHE = frozenset({
+    Role.COLLECTEUR,
+    Role.CONTROLEUR,
+    Role.REGISSEUR,
+    Role.COMMERCANT,
+})
+ROLES_MARCHE = frozenset({Role.ADMIN_MARCHE, *ROLES_MEMBRES_MARCHE})
 
 
 class CustomUserManager(UserManager):
@@ -60,11 +71,73 @@ class CustomUser(AbstractUser):
 
         if self.role == Role.ADMIN_GENERAL:
             return
-        if self.role == Role.ADMIN_COMMUNE and not self.commune_id:
-            raise ValidationError({'commune': 'Une commune est obligatoire pour cet administrateur.'})
-        if self.role in {Role.COLLECTEUR, Role.CONTROLEUR, Role.REGISSEUR, Role.COMMERCANT} and not self.marche_id:
+        if self.role in ROLES_COMMUNE:
+            if not self.commune_id:
+                raise ValidationError({'commune': 'Une commune est obligatoire pour ce rôle.'})
+            self.marche_id = None
+            return
+        if self.role in ROLES_MARCHE and not self.marche_id:
             raise ValidationError({'marche': 'Un marché est obligatoire pour ce rôle.'})
         if self.marche_id and self.commune_id and self.marche.commune_id != self.commune_id:
             raise ValidationError({'marche': 'Le marché doit appartenir à la commune choisie.'})
         if self.marche_id and not self.commune_id:
             self.commune_id = self.marche.commune_id
+
+
+def roles_creables(user):
+    if user.is_admin_general:
+        return frozenset({Role.ADMIN_COMMUNE})
+    if user.role == Role.ADMIN_COMMUNE:
+        return frozenset({Role.MAIRE, Role.ADMIN_MARCHE, *ROLES_MEMBRES_MARCHE})
+    if user.role == Role.ADMIN_MARCHE:
+        return ROLES_MEMBRES_MARCHE
+    return frozenset()
+
+
+def peut_creer_marche(user):
+    return user.role == Role.ADMIN_COMMUNE
+
+
+def utilisateurs_visibles(user):
+    qs = CustomUser.objects.select_related('commune', 'marche')
+    if user.is_admin_general:
+        return qs
+    if user.role == Role.ADMIN_COMMUNE and user.commune_id:
+        return qs.filter(commune_id=user.commune_id).exclude(role=Role.ADMIN_GENERAL)
+    if user.role == Role.ADMIN_MARCHE and user.marche_id:
+        return qs.filter(marche_id=user.marche_id)
+    return qs.none()
+
+
+def utilisateurs_gerables(user):
+    return utilisateurs_visibles(user).filter(role__in=roles_creables(user))
+
+
+def consigne_utilisateurs(user):
+    if user.is_admin_general:
+        return (
+            'Vous créez les administrateurs de commune. '
+            'Chacun gère ensuite les membres, les marchés et les équipes de sa commune.'
+        )
+    if user.role == Role.ADMIN_COMMUNE:
+        return (
+            'Vous créez le maire, les marchés de la commune, l’administrateur de chaque marché, '
+            'ainsi que les collecteurs, contrôleurs, régisseurs et commerçants.'
+        )
+    if user.role == Role.ADMIN_MARCHE:
+        return 'Vous créez les membres de votre marché : collecteurs, contrôleurs, régisseurs et commerçants.'
+    return ''
+
+
+def libelle_creation_utilisateur(user):
+    if user.is_admin_general:
+        return 'Nouvel administrateur'
+    return 'Nouveau membre'
+
+
+def titre_creation_utilisateur(user):
+    if user.is_admin_general:
+        return 'Nouvel administrateur de commune'
+    if user.role == Role.ADMIN_MARCHE:
+        return 'Nouveau membre du marché'
+    return 'Nouveau membre de la commune'

@@ -26,7 +26,17 @@ from accounts.mixins import (
     marches_visibles,
     scoped_qs,
 )
-from accounts.models import CustomUser, Role
+from accounts.models import (
+    CustomUser,
+    Role,
+    consigne_utilisateurs,
+    libelle_creation_utilisateur,
+    peut_creer_marche,
+    roles_creables,
+    titre_creation_utilisateur,
+    utilisateurs_gerables,
+    utilisateurs_visibles,
+)
 from marches.models import Commune, Marche, PenaliteParametre, Tarif, TypePlace
 from recensement.forms import CommercantForm, PlaceForm
 from recensement.models import Commercant, Place
@@ -225,6 +235,7 @@ class MarcheListView(RoleRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        ctx['peut_creer'] = peut_creer_marche(self.request.user)
         ctx.setdefault('form', MarcheForm(editor=self.request.user))
         if self.request.user.is_admin_general:
             ctx['suppressions'] = (
@@ -234,6 +245,8 @@ class MarcheListView(RoleRequiredMixin, ListView):
         return ctx
 
     def post(self, request, *args, **kwargs):
+        if not peut_creer_marche(request.user):
+            raise PermissionDenied
         form = MarcheForm(request.POST, editor=request.user)
         if form.is_valid():
             self.object = form.save()
@@ -249,7 +262,8 @@ class MarcheListView(RoleRequiredMixin, ListView):
 
 
 class MarcheCreateView(RoleRequiredMixin, CreateView):
-    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
+    allowed_roles = {Role.ADMIN_COMMUNE}
+    autoriser_admin_general = False
     model = Marche
     form_class = MarcheForm
     template_name = 'marches/form.html'
@@ -270,7 +284,8 @@ class MarcheCreateView(RoleRequiredMixin, CreateView):
 
 
 class MarcheUpdateView(RoleRequiredMixin, UpdateView):
-    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
+    allowed_roles = {Role.ADMIN_COMMUNE}
+    autoriser_admin_general = False
     model = Marche
     form_class = MarcheForm
     template_name = 'marches/form.html'
@@ -287,7 +302,8 @@ class MarcheUpdateView(RoleRequiredMixin, UpdateView):
 
 
 class MarcheSuppressionView(RoleRequiredMixin, View):
-    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
+    allowed_roles = {Role.ADMIN_COMMUNE}
+    autoriser_admin_general = False
 
     def post(self, request, pk):
         marche = get_object_or_404(marches_geres(request.user), pk=pk)
@@ -332,24 +348,27 @@ class MarcheRecupererView(RoleRequiredMixin, View):
 
 
 class UserListView(RoleRequiredMixin, ListView):
-    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE}
     model = CustomUser
     template_name = 'accounts/user_list.html'
 
     def get_queryset(self):
-        qs = CustomUser.objects.select_related('commune', 'marche')
+        return utilisateurs_visibles(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        if user.is_admin_general:
-            return qs
-        return qs.filter(commune=user.commune).exclude(role=Role.ADMIN_GENERAL)
+        ctx['roles_gerables'] = roles_creables(user)
+        ctx['consigne'] = consigne_utilisateurs(user)
+        ctx['libelle_creation'] = libelle_creation_utilisateur(user)
+        return ctx
 
 
 class UserCreateView(RoleRequiredMixin, CreateView):
-    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE}
     model = CustomUser
     form_class = UserForm
     template_name = 'accounts/form.html'
-    extra_context = {'titre': 'Nouvel utilisateur'}
     success_url = reverse_lazy('site_:utilisateurs')
 
     def get_form_kwargs(self):
@@ -357,13 +376,18 @@ class UserCreateView(RoleRequiredMixin, CreateView):
         kwargs['editor'] = self.request.user
         return kwargs
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['titre'] = titre_creation_utilisateur(self.request.user)
+        return ctx
+
     def form_valid(self, form):
         messages.success(self.request, 'Utilisateur créé.')
         return super().form_valid(form)
 
 
 class UserUpdateView(RoleRequiredMixin, UpdateView):
-    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE}
     model = CustomUser
     form_class = UserForm
     template_name = 'accounts/form.html'
@@ -371,7 +395,7 @@ class UserUpdateView(RoleRequiredMixin, UpdateView):
     success_url = reverse_lazy('site_:utilisateurs')
 
     def get_queryset(self):
-        return UserListView.get_queryset(self)
+        return utilisateurs_gerables(self.request.user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -380,7 +404,7 @@ class UserUpdateView(RoleRequiredMixin, UpdateView):
 
 
 class TypePlaceListView(RoleRequiredMixin, ListView):
-    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.REGISSEUR}
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.REGISSEUR}
     model = TypePlace
     template_name = 'marches/typeplace_list.html'
 
@@ -411,7 +435,7 @@ class TypePlaceListView(RoleRequiredMixin, ListView):
 
 
 class TypePlaceCreateView(RoleRequiredMixin, CreateView):
-    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.REGISSEUR}
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.REGISSEUR}
     model = TypePlace
     form_class = TypePlaceForm
     template_name = 'marches/form.html'
@@ -424,7 +448,7 @@ class TypePlaceCreateView(RoleRequiredMixin, CreateView):
 
 
 class TarifListView(RoleRequiredMixin, ListView):
-    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.REGISSEUR}
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.REGISSEUR}
     model = Tarif
     template_name = 'marches/tarif_list.html'
 
@@ -458,7 +482,7 @@ class TarifListView(RoleRequiredMixin, ListView):
 
 
 class TarifCreateView(RoleRequiredMixin, CreateView):
-    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.REGISSEUR}
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.REGISSEUR}
     model = Tarif
     form_class = TarifForm
     template_name = 'marches/form.html'
@@ -709,7 +733,7 @@ class ImpayesListView(RoleRequiredMixin, ListView):
 
 
 class PayerView(RoleRequiredMixin, TemplateView):
-    allowed_roles = {Role.COMMERCANT, Role.COLLECTEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
+    allowed_roles = {Role.COMMERCANT, Role.COLLECTEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE}
     template_name = 'tickets/payer.html'
 
     def _commercant(self):
@@ -911,7 +935,9 @@ class AuditListView(RoleRequiredMixin, ListView):
     def get_queryset(self):
         qs = JournalAudit.objects.select_related('user')
         user = self.request.user
-        if not user.is_admin_general and user.commune_id:
+        if user.role == Role.ADMIN_MARCHE and user.marche_id:
+            qs = qs.filter(Q(user__marche=user.marche) | Q(user=user))
+        elif not user.is_admin_general and user.commune_id:
             qs = qs.filter(Q(user__commune=user.commune) | Q(user__isnull=True))
         return qs
 
@@ -951,31 +977,32 @@ def resultats_recherche(user, q):
     marches = marches_visibles(user).filter(
         Q(nom__icontains=q) | Q(adresse__icontains=q) | Q(commune__nom__icontains=q)
     )[:8]
-    marche_url = user.is_admin_general or user.role == Role.ADMIN_COMMUNE
     _ajouter(groupes, 'Marchés', [
         {
             'label': marche.nom,
             'detail': str(marche.commune),
-            'url': reverse('marches:marche_update', args=[marche.pk]) if marche_url else '',
+            'url': (
+                reverse('marches:marche_update', args=[marche.pk])
+                if user.role == Role.ADMIN_COMMUNE
+                else reverse('marches:marches') if user.is_admin_general else ''
+            ),
         }
         for marche in marches
     ])
 
-    if user.is_admin_general or user.role == Role.ADMIN_COMMUNE:
-        utilisateurs = CustomUser.objects.select_related('commune', 'marche')
-        if not user.is_admin_general:
-            utilisateurs = utilisateurs.filter(commune=user.commune).exclude(role=Role.ADMIN_GENERAL)
-        utilisateurs = utilisateurs.filter(
+    if user.is_admin_general or user.role in {Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE}:
+        utilisateurs = utilisateurs_visibles(user).filter(
             Q(username__icontains=q)
             | Q(first_name__icontains=q)
             | Q(last_name__icontains=q)
             | Q(telephone__icontains=q)
         )[:8]
+        gerables = roles_creables(user)
         _ajouter(groupes, 'Utilisateurs', [
             {
                 'label': personne.get_full_name() or personne.username,
                 'detail': f'{personne.get_role_display()} · {personne.telephone}',
-                'url': reverse('site_:user_update', args=[personne.pk]),
+                'url': reverse('site_:user_update', args=[personne.pk]) if personne.role in gerables else '',
             }
             for personne in utilisateurs
         ])
@@ -986,7 +1013,9 @@ def resultats_recherche(user, q):
     else:
         commercants = scoped_qs(commercants, user)
     commercants = commercants.filter(Q(nom__icontains=q) | Q(telephone__icontains=q))[:8]
-    peut_payer = user.is_admin_general or user.role in {Role.ADMIN_COMMUNE, Role.COLLECTEUR, Role.COMMERCANT}
+    peut_payer = user.is_admin_general or user.role in {
+        Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.COLLECTEUR, Role.COMMERCANT,
+    }
     _ajouter(groupes, 'Commerçants', [
         {
             'label': commercant.nom,
