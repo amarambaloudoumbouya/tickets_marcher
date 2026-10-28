@@ -2,7 +2,7 @@ from django.db.models import Q
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
 
-from accounts.models import ROLES_MEMBRES_MARCHE, CustomUser, Role, roles_creables
+from accounts.models import ROLES_COMMUNE, ROLES_MARCHE, ROLES_MEMBRES_MARCHE, CustomUser, Role, roles_creables
 from marches.models import Commune, Marche
 
 
@@ -36,10 +36,14 @@ class UserForm(forms.ModelForm):
         autorises = roles_creables(editor)
         self.fields['role'].choices = [(role.value, role.label) for role in Role if role in autorises]
         if editor.is_admin_general:
-            self.fields['role'].initial = Role.ADMIN_COMMUNE
-            self.fields['commune'].required = True
+            marches = Marche.objects.filter(suppression_demandee_le__isnull=True)
+            if self.instance.marche_id:
+                marches = Marche.objects.filter(
+                    Q(suppression_demandee_le__isnull=True) | Q(pk=self.instance.marche_id)
+                )
+            self.fields['marche'].queryset = marches
+            self.fields['commune'].required = False
             self.fields['marche'].required = False
-            self.fields['marche'].widget = forms.HiddenInput()
             return
         if editor.role == Role.ADMIN_COMMUNE:
             self.fields['commune'].queryset = Commune.objects.filter(pk=editor.commune_id)
@@ -78,9 +82,23 @@ class UserForm(forms.ModelForm):
             self.add_error('role', 'Vous ne pouvez pas attribuer ce rôle.')
             return cleaned
         if editor.is_admin_general:
-            cleaned['marche'] = None
-            if not cleaned.get('commune'):
-                self.add_error('commune', 'Choisissez la commune de cet administrateur.')
+            if role == Role.ADMIN_GENERAL:
+                cleaned['commune'] = None
+                cleaned['marche'] = None
+            elif role in ROLES_COMMUNE:
+                cleaned['marche'] = None
+                if not cleaned.get('commune'):
+                    self.add_error('commune', 'Une commune est obligatoire pour ce rôle.')
+            elif role in ROLES_MARCHE:
+                if not cleaned.get('marche'):
+                    self.add_error('marche', 'Un marché est obligatoire pour ce rôle.')
+                else:
+                    marche = cleaned['marche']
+                    commune = cleaned.get('commune')
+                    if commune and marche.commune_id != commune.pk:
+                        self.add_error('marche', 'Le marché doit appartenir à la commune choisie.')
+                    elif not commune:
+                        cleaned['commune'] = marche.commune
             return cleaned
         if editor.role == Role.ADMIN_COMMUNE:
             self.errors.pop('commune', None)
@@ -108,17 +126,17 @@ class UserForm(forms.ModelForm):
         if pwd:
             user.set_password(pwd)
         editor = self.editor
-        if editor and editor.is_admin_general:
-            user.role = Role.ADMIN_COMMUNE
-            user.marche = None
-        elif editor and editor.role == Role.ADMIN_COMMUNE:
+        if editor and not editor.is_admin_general and editor.role == Role.ADMIN_COMMUNE:
             user.commune = editor.commune
             if user.role == Role.MAIRE:
                 user.marche = None
-        elif editor and editor.role == Role.ADMIN_MARCHE:
+        elif editor and not editor.is_admin_general and editor.role == Role.ADMIN_MARCHE:
             user.commune = editor.commune
             user.marche = editor.marche
-        if user.role in {Role.ADMIN_COMMUNE, Role.MAIRE}:
+        if user.role == Role.ADMIN_GENERAL:
+            user.commune = None
+            user.marche = None
+        elif user.role in {Role.ADMIN_COMMUNE, Role.MAIRE}:
             user.marche = None
         if user.marche_id and not user.commune_id:
             user.commune_id = user.marche.commune_id

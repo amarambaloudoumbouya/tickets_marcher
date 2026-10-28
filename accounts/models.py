@@ -86,7 +86,7 @@ class CustomUser(AbstractUser):
 
 def roles_creables(user):
     if user.is_admin_general:
-        return frozenset({Role.ADMIN_COMMUNE})
+        return frozenset(Role)
     if user.role == Role.ADMIN_COMMUNE:
         return frozenset({Role.MAIRE, Role.ADMIN_MARCHE, *ROLES_MEMBRES_MARCHE})
     if user.role == Role.ADMIN_MARCHE:
@@ -95,7 +95,7 @@ def roles_creables(user):
 
 
 def peut_creer_marche(user):
-    return user.role == Role.ADMIN_COMMUNE
+    return user.is_admin_general or user.role == Role.ADMIN_COMMUNE
 
 
 def utilisateurs_visibles(user):
@@ -116,8 +116,8 @@ def utilisateurs_gerables(user):
 def consigne_utilisateurs(user):
     if user.is_admin_general:
         return (
-            'Vous créez les administrateurs de commune. '
-            'Chacun gère ensuite les membres, les marchés et les équipes de sa commune.'
+            'Vous pouvez tout créer : les communes, leurs administrateurs, les marchés, '
+            'les administrateurs de marché et tous les membres.'
         )
     if user.role == Role.ADMIN_COMMUNE:
         return (
@@ -131,13 +131,13 @@ def consigne_utilisateurs(user):
 
 def libelle_creation_utilisateur(user):
     if user.is_admin_general:
-        return 'Nouvel administrateur'
+        return 'Nouvel utilisateur'
     return 'Nouveau membre'
 
 
 def titre_creation_utilisateur(user):
     if user.is_admin_general:
-        return 'Nouvel administrateur de commune'
+        return 'Nouvel utilisateur'
     if user.role == Role.ADMIN_MARCHE:
         return 'Nouveau membre du marché'
     return 'Nouveau membre de la commune'

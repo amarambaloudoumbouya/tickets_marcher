@@ -262,8 +262,7 @@ class MarcheListView(RoleRequiredMixin, ListView):
 
 
 class MarcheCreateView(RoleRequiredMixin, CreateView):
-    allowed_roles = {Role.ADMIN_COMMUNE}
-    autoriser_admin_general = False
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
     model = Marche
     form_class = MarcheForm
     template_name = 'marches/form.html'
@@ -284,8 +283,7 @@ class MarcheCreateView(RoleRequiredMixin, CreateView):
 
 
 class MarcheUpdateView(RoleRequiredMixin, UpdateView):
-    allowed_roles = {Role.ADMIN_COMMUNE}
-    autoriser_admin_general = False
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
     model = Marche
     form_class = MarcheForm
     template_name = 'marches/form.html'
@@ -302,8 +300,7 @@ class MarcheUpdateView(RoleRequiredMixin, UpdateView):
 
 
 class MarcheSuppressionView(RoleRequiredMixin, View):
-    allowed_roles = {Role.ADMIN_COMMUNE}
-    autoriser_admin_general = False
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
 
     def post(self, request, pk):
         marche = get_object_or_404(marches_geres(request.user), pk=pk)
@@ -983,8 +980,8 @@ def resultats_recherche(user, q):
             'detail': str(marche.commune),
             'url': (
                 reverse('marches:marche_update', args=[marche.pk])
-                if user.role == Role.ADMIN_COMMUNE
-                else reverse('marches:marches') if user.is_admin_general else ''
+                if user.is_admin_general or user.role == Role.ADMIN_COMMUNE
+                else ''
             ),
         }
         for marche in marches

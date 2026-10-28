@@ -65,30 +65,45 @@ class HierarchieCreationTests(TestCase):
         self.assertEqual(cree.commune, self.kaloum)
         self.assertIsNone(cree.marche_id)
 
-    def test_admin_general_ne_cree_ni_marche_ni_collecteur(self):
+    def test_admin_general_cree_aussi_marches_et_tous_les_roles(self):
         self.client.force_login(self.general)
         response = self.client.post(reverse('marches:marches'), {
-            'commune': self.kaloum.pk,
+            'commune': self.kindia.pk,
             'nom': 'Nouveau',
             'adresse': '',
             'active': 'on',
+            'controle_dettes_bloquant': 'on',
         })
-        self.assertEqual(response.status_code, 403)
-        self.assertFalse(Marche.objects.filter(nom='Nouveau').exists())
+        self.assertEqual(response.status_code, 302)
+        marche = Marche.objects.get(nom='Nouveau')
+        self.assertEqual(marche.commune, self.kindia)
 
         response = self.client.post(reverse('site_:user_create'), self._compte(
-            username='col_interdit',
+            username='col_general',
             telephone='620000011',
             role=Role.COLLECTEUR,
             commune=self.kaloum.pk,
             marche=self.madina.pk,
         ))
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(User.objects.filter(username='col_interdit').exists())
+        self.assertEqual(response.status_code, 302)
+        collecteur = User.objects.get(username='col_general')
+        self.assertEqual(collecteur.role, Role.COLLECTEUR)
+        self.assertEqual(collecteur.marche, self.madina)
+
+        response = self.client.post(reverse('site_:user_create'), self._compte(
+            username='autre_general',
+            telephone='620000017',
+            role=Role.ADMIN_GENERAL,
+        ))
+        self.assertEqual(response.status_code, 302)
+        autre = User.objects.get(username='autre_general')
+        self.assertEqual(autre.role, Role.ADMIN_GENERAL)
+        self.assertIsNone(autre.commune_id)
+        self.assertIsNone(autre.marche_id)
 
         page = self.client.get(reverse('marches:marches'))
-        self.assertNotContains(page, 'Nouveau marché')
-        self.assertContains(page, 'administrateur de chaque commune')
+        self.assertContains(page, 'Nouveau marché')
+        self.assertContains(self.client.get(reverse('site_:user_create')), 'Admin marché')
 
     def test_admin_commune_cree_marche_maire_et_admin_marche(self):
         self.client.force_login(self.admin_commune)

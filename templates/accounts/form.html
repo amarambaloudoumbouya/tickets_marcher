@@ -29,12 +29,18 @@ document.addEventListener('DOMContentLoaded', function () {
   var role = document.getElementById('id_role');
   var marche = document.getElementById('div_id_marche');
   if (!role || !marche) return;
-  function maj() {
-    var input = marche.querySelector('select');
+  var commune = document.getElementById('div_id_commune');
+  function majChamp(bloc, masquer) {
+    if (!bloc) return;
+    var input = bloc.querySelector('select');
     if (!input) return;
-    var masquer = role.value === 'maire';
-    marche.style.display = masquer ? 'none' : '';
+    bloc.style.display = masquer ? 'none' : '';
     input.required = !masquer;
+    if (masquer) input.value = '';
+  }
+  function maj() {
+    majChamp(commune, role.value === 'admin_general');
+    majChamp(marche, ['admin_general', 'admin_commune', 'maire'].indexOf(role.value) !== -1);
   }
   role.addEventListener('change', maj);
   maj();
