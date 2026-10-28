@@ -52,6 +52,12 @@
           </tbody>
         </table>
         <a class="btn btn-default" href="{% url 'tickets:ticket_detail' resultat.ticket.pk %}">Voir le ticket</a>
+        {% if user.role == 'controleur' and resultat.ticket.statut == 'emis' or user.role == 'controleur' and resultat.ticket.statut == 'impaye' %}
+        <form method="post" action="{% url 'tickets:payer' %}" style="margin-top:12px;">{% csrf_token %}
+          <input type="hidden" name="commercant" value="{{ resultat.ticket.commercant_id }}">
+          <button type="submit" class="btn btn-primary">Paie pour moi</button>
+        </form>
+        {% endif %}
       </div>
       {% endif %}
     </div>

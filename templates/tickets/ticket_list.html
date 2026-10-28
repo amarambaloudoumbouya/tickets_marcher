@@ -40,7 +40,7 @@
       {% endif %}
       <form method="get" style="display:inline-block;min-width:220px;">
         <select name="statut" class="form-control" onchange="this.form.submit()">
-          <option value="">Tous les statuts du jour</option>
+          <option value="">{% if menu_commercant %}Tous les statuts{% else %}Tous les statuts du jour{% endif %}</option>
           {% for v, l in statuts %}
           <option value="{{ v }}" {% if filtre_statut == v %}selected{% endif %}>{{ l }}</option>
           {% endfor %}
@@ -58,24 +58,37 @@
         <thead>
           <tr>
             <th>Numéro</th>
+            <th>Jour</th>
             <th>Commerçant</th>
             <th>Montant</th>
             <th>Pénalité</th>
             <th>Statut</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {% for ticket in object_list %}
           <tr>
             <td><a href="{% url 'tickets:ticket_detail' ticket.pk %}">{{ ticket.numero }}</a></td>
+            <td>{{ ticket.date_validite|date:"d/m/Y" }}</td>
             <td>{{ ticket.commercant.nom }}</td>
             <td>{{ ticket.montant|intcomma }} GNF</td>
             <td>{{ ticket.montant_penalite|intcomma }} GNF</td>
             <td><span class="ticket-badge ticket-statut-{{ ticket.statut }}">{{ ticket.get_statut_display }}</span></td>
+            <td>
+              {% if user.role == 'controleur' and ticket.statut == 'emis' or user.role == 'controleur' and ticket.statut == 'impaye' %}
+              <form method="post" action="{% url 'tickets:payer' %}">{% csrf_token %}
+                <input type="hidden" name="commercant" value="{{ ticket.commercant_id }}">
+                <button type="submit" class="btn btn-primary btn-sm">Paie pour moi</button>
+              </form>
+              {% elif user.role == 'commercant' and ticket.statut == 'emis' or user.role == 'commercant' and ticket.statut == 'impaye' %}
+              <a class="btn btn-primary btn-sm" href="{% url 'tickets:payer' %}">Payé</a>
+              {% endif %}
+            </td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="5">Aucun ticket.</td>
+            <td colspan="7">Aucun ticket.</td>
           </tr>
           {% endfor %}
         </tbody>

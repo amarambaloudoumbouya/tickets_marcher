@@ -13,12 +13,18 @@
 <div class="row small-spacing">
   <div class="col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2 col-xs-12">
     <div class="box-content card">
-      <h4 class="box-title bg-warning"><i class="ico fa fa-credit-card"></i>Orange Money</h4>
+      <h4 class="box-title bg-warning"><i class="ico fa fa-credit-card"></i>Demande de retrait</h4>
       <div class="card-content">
-        <p style="margin-bottom:4px;color:#7a869a;">Confirmer le paiement</p>
+        <p style="margin-bottom:4px;color:#7a869a;">Message envoyé au {{ paiement.numero_retrait }}</p>
         <p style="margin:0 0 16px;font-size:32px;line-height:1.2;font-weight:600;color:#0f2f24;">{{ paiement.montant|intcomma }} GNF</p>
         <p style="margin-bottom:4px;"><strong>{{ paiement.commercant.nom }}</strong></p>
-        <p style="margin-bottom:16px;color:#7a869a;">{{ paiement.commercant.telephone }} · {{ paiement.marche }}<br>Référence {{ paiement.reference }}</p>
+        {% if paiement.mode == 'controleur' and paiement.initiateur %}
+        <p style="margin-bottom:4px;">Pour {{ paiement.commercant.nom }}, par {{ paiement.initiateur.get_full_name|default:paiement.initiateur.username }}.</p>
+        {% endif %}
+        <p style="margin-bottom:16px;color:#7a869a;">
+          Dépôt sur {{ paiement.numero_depot }} · {{ paiement.marche }}<br>
+          Référence {{ paiement.reference }}
+        </p>
 
         <table class="table table-striped table-bordered">
           <thead>
@@ -43,7 +49,7 @@
 
         {% if paiement.statut == 'en_attente' %}
         <form method="post">{% csrf_token %}
-          <button type="submit" class="btn btn-primary btn-block waves-effect waves-light" name="action" value="confirmer" style="margin-bottom:8px;">Confirmer le paiement</button>
+          <button type="submit" class="btn btn-primary btn-block waves-effect waves-light" name="action" value="confirmer" style="margin-bottom:8px;">Confirmer le retrait</button>
           <button type="submit" class="btn btn-default btn-block" name="action" value="refuser" style="margin-bottom:8px;">Refuser</button>
           <button type="submit" class="btn btn-default btn-block" name="action" value="timeout">Simuler un timeout</button>
         </form>

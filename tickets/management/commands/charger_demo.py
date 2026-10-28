@@ -13,8 +13,14 @@ class Command(BaseCommand):
     help = 'Charge un marché de démonstration (2 communes, utilisateurs, places).'
 
     def handle(self, *args, **options):
-        kaloum, _ = Commune.objects.get_or_create(code='KAL', defaults={'nom': 'Kaloum'})
-        kindia, _ = Commune.objects.get_or_create(code='KIN', defaults={'nom': 'Kindia'})
+        kaloum, _ = Commune.objects.get_or_create(code='KAL', defaults={'nom': 'Kaloum', 'numero_depot': '620100001'})
+        kindia, _ = Commune.objects.get_or_create(code='KIN', defaults={'nom': 'Kindia', 'numero_depot': '620100002'})
+        if not kaloum.numero_depot:
+            kaloum.numero_depot = '620100001'
+            kaloum.save(update_fields=['numero_depot'])
+        if not kindia.numero_depot:
+            kindia.numero_depot = '620100002'
+            kindia.save(update_fields=['numero_depot'])
         madina, _ = Marche.objects.get_or_create(commune=kaloum, nom='Marché Madina', defaults={'adresse': 'Madina'})
         central, _ = Marche.objects.get_or_create(commune=kindia, nom='Marché Central Kindia')
         for marche in (madina, central):
@@ -51,7 +57,10 @@ class Command(BaseCommand):
         user('admin_madina', Role.ADMIN_COMMUNE, '620000002', commune=kaloum, first_name='Admin Madina')
         user('admin_marche', Role.ADMIN_MARCHE, '620000007', commune=kaloum, marche=madina, first_name='Admin Marché')
         user('collecteur', Role.COLLECTEUR, '620000003', commune=kaloum, marche=madina, first_name='Collecteur')
-        user('controleur', Role.CONTROLEUR, '620000004', commune=kaloum, marche=madina, first_name='Contrôleur')
+        controleur = user('controleur', Role.CONTROLEUR, '620000004', commune=kaloum, marche=madina, first_name='Contrôleur')
+        if not controleur.numero_om:
+            controleur.numero_om = '624000004'
+            controleur.save(update_fields=['numero_om'])
         user('regisseur', Role.REGISSEUR, '620000005', commune=kaloum, marche=madina, first_name='Régisseur')
         user('maire', Role.MAIRE, '620000006', commune=kaloum, first_name='Maire')
         fatou_user = user('fatou', Role.COMMERCANT, '622000111', commune=kaloum, marche=madina, first_name='Fatou')

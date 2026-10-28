@@ -630,8 +630,8 @@ class TicketListView(RoleRequiredMixin, ListView):
         marche = marche_courant(self.request)
         qs = Ticket.objects.select_related('commercant', 'place', 'marche')
         if user.role == Role.COMMERCANT and getattr(user, 'fiche_commercant', None):
-            return qs.filter(commercant=user.fiche_commercant)
-        if marche:
+            qs = qs.filter(commercant=user.fiche_commercant)
+        elif marche:
             qs = qs.filter(marche=marche)
         else:
             qs = scoped_qs(qs, user)
@@ -641,7 +641,7 @@ class TicketListView(RoleRequiredMixin, ListView):
         jour = self.request.GET.get('jour')
         if jour:
             qs = qs.filter(date_validite=jour)
-        elif statut != 'impaye':
+        elif user.role != Role.COMMERCANT and statut != 'impaye':
             qs = qs.filter(date_validite=timezone.localdate())
         return qs
 
@@ -704,13 +704,18 @@ class GenererTicketsView(RoleRequiredMixin, TemplateView):
 
 
 class ImpayesListView(RoleRequiredMixin, ListView):
-    allowed_roles = ROLES_COLLECTE | ROLES_MAIRIE | ROLES_CONTROLE
+    allowed_roles = ROLES_COLLECTE | ROLES_MAIRIE | ROLES_CONTROLE | {Role.COMMERCANT}
     model = Ticket
     template_name = 'tickets/impayes.html'
 
     def get_queryset(self):
+        user = self.request.user
+        qs = Ticket.objects.filter(statut=StatutTicket.IMPAYE).select_related('commercant', 'place')
+        if user.role == Role.COMMERCANT:
+            fiche = getattr(user, 'fiche_commercant', None)
+            return qs.filter(commercant=fiche) if fiche else qs.none()
         marche = marche_courant(self.request)
-        return Ticket.objects.filter(marche=marche, statut=StatutTicket.IMPAYE).select_related('commercant', 'place')
+        return qs.filter(marche=marche)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -718,18 +723,48 @@ class ImpayesListView(RoleRequiredMixin, ListView):
         return ctx
 
 
+class HistoriquePaiementView(RoleRequiredMixin, ListView):
+    allowed_roles = {
+        Role.COMMERCANT, Role.CONTROLEUR, Role.COLLECTEUR,
+        Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE,
+        Role.MAIRE, Role.REGISSEUR,
+    }
+    model = Paiement
+    template_name = 'tickets/historique.html'
+    paginate_by = 50
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Paiement.objects.select_related('commercant', 'initiateur', 'marche').order_by('-created_at')
+        if user.role == Role.COMMERCANT:
+            fiche = getattr(user, 'fiche_commercant', None)
+            return qs.filter(commercant=fiche) if fiche else qs.none()
+        if user.role == Role.CONTROLEUR:
+            return qs.filter(initiateur=user)
+        return scoped_qs(qs, user)
+
+
 class PayerView(RoleRequiredMixin, TemplateView):
-    allowed_roles = {Role.COMMERCANT, Role.COLLECTEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE}
+    allowed_roles = {
+        Role.COMMERCANT, Role.CONTROLEUR, Role.COLLECTEUR,
+        Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE,
+    }
     template_name = 'tickets/payer.html'
 
     def _commercant(self):
         user = self.request.user
-        cid = self.request.GET.get('commercant') or self.request.POST.get('commercant')
         if user.role == Role.COMMERCANT:
-            return user.fiche_commercant
-        if cid:
-            return Commercant.objects.get(pk=cid)
-        return None
+            return getattr(user, 'fiche_commercant', None)
+        cid = self.request.GET.get('commercant') or self.request.POST.get('commercant')
+        if not cid:
+            return None
+        commercant = get_object_or_404(
+            Commercant.objects.select_related('marche__commune'),
+            pk=cid,
+        )
+        if not marches_visibles(user).filter(pk=commercant.marche_id).exists():
+            raise PermissionDenied
+        return commercant
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -741,6 +776,11 @@ class PayerView(RoleRequiredMixin, TemplateView):
             dus = solde_tickets(commercant, commercant.marche)
             ctx['tickets_dus'] = dus
             ctx['solde'] = montant_solde(dus)
+            ctx['numero_depot'] = commercant.marche.commune.numero_depot
+            if self.request.user.role == Role.CONTROLEUR:
+                ctx['numero_retrait'] = self.request.user.numero_om
+            else:
+                ctx['numero_retrait'] = commercant.telephone
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -748,11 +788,17 @@ class PayerView(RoleRequiredMixin, TemplateView):
         if not commercant:
             messages.error(request, 'Choisissez un commerçant.')
             return redirect('tickets:payer')
+        mode = Paiement.Mode.CONTROLEUR if request.user.role == Role.CONTROLEUR else Paiement.Mode.COMMERCANT
         try:
-            paiement = initier_paiement(commercant, initiateur=request.user, marche=commercant.marche)
+            paiement = initier_paiement(
+                commercant,
+                initiateur=request.user,
+                marche=commercant.marche,
+                mode=mode,
+            )
         except Exception as exc:
             messages.error(request, str(exc))
-            return redirect('tickets:payer')
+            return redirect(f"{reverse('tickets:payer')}?commercant={commercant.pk}")
         return redirect('tickets:paiement_mock', token=paiement.mock_token)
 
 
@@ -760,9 +806,9 @@ class PaiementMockView(LoginRequiredMixin, TemplateView):
     template_name = 'tickets/paiement_mock.html'
 
     def get_paiement(self):
-        return Paiement.objects.select_related('commercant', 'marche').prefetch_related('lignes__ticket').get(
-            mock_token=self.kwargs['token']
-        )
+        return Paiement.objects.select_related(
+            'commercant', 'marche', 'marche__commune', 'initiateur'
+        ).prefetch_related('lignes__ticket').get(mock_token=self.kwargs['token'])
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -770,7 +816,7 @@ class PaiementMockView(LoginRequiredMixin, TemplateView):
         return ctx
 
     def post(self, request, token):
-        paiement = Paiement.objects.get(mock_token=token)
+        paiement = Paiement.objects.select_related('commercant', 'initiateur').get(mock_token=token)
         action = request.POST.get('action')
         mapping = {
             'confirmer': Paiement.Statut.SUCCES,
@@ -783,7 +829,18 @@ class PaiementMockView(LoginRequiredMixin, TemplateView):
             messages.error(request, str(exc))
         paiement.refresh_from_db()
         if paiement.statut == Paiement.Statut.SUCCES:
-            messages.success(request, 'Paiement Orange Money confirmé.')
+            if paiement.mode == Paiement.Mode.CONTROLEUR and paiement.initiateur_id:
+                par = paiement.initiateur.get_full_name() or paiement.initiateur.username
+                messages.success(
+                    request,
+                    f'Paiement confirmé pour {paiement.commercant.nom}, effectué par {par}. '
+                    f'Le dépôt est reçu sur {paiement.numero_depot}.',
+                )
+            else:
+                messages.success(
+                    request,
+                    f'Paiement confirmé. Le dépôt est reçu sur {paiement.numero_depot}.',
+                )
             return redirect('tickets:recu', token=token)
         messages.warning(request, 'Paiement non abouti. Vous pouvez réessayer.')
         return redirect('tickets:payer')

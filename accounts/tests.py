@@ -48,6 +48,7 @@ class HierarchieCreationTests(TestCase):
         response = self.client.post(reverse('marches:communes'), {
             'nom': 'Matam',
             'code': 'MAT',
+            'numero_depot': '620100010',
             'active': 'on',
         })
         self.assertEqual(response.status_code, 302)

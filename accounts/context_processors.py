@@ -60,17 +60,26 @@ def role_menu(request):
         'menu_parametres': menu_parametres,
         'menu_collecteur': menu_collecteur,
         'menu_controleur': menu_controleur,
+        'menu_commercant': role == Role.COMMERCANT,
         'menu_paiement': role in {
-            Role.COMMERCANT, Role.COLLECTEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE,
+            Role.COMMERCANT, Role.CONTROLEUR, Role.COLLECTEUR,
+            Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE,
         },
+        'menu_historique': role in {
+            Role.COMMERCANT, Role.CONTROLEUR, Role.COLLECTEUR,
+            Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.MAIRE, Role.REGISSEUR,
+        },
+        'libelle_paiement': (
+            'Payé' if role == Role.COMMERCANT else
+            'Paie pour moi' if role == Role.CONTROLEUR else
+            'Payer'
+        ),
         'menu_cloture': role in {Role.REGISSEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE},
         'menu_audit': menu_audit,
         'header_notifications': _notifications(user),
         'header_messages': _messages(user, menu_audit),
-        'header_notifications_plus': reverse('tickets:impayes') if (menu_collecteur or menu_mairie or menu_controleur) else (
-            reverse('tickets:tickets') if voit_tickets else ''
-        ),
-        'header_notifications_plus_label': 'Voir les impayés' if (menu_collecteur or menu_mairie or menu_controleur) else 'Voir les tickets',
+        'header_notifications_plus': reverse('tickets:impayes') if voit_tickets else '',
+        'header_notifications_plus_label': 'Voir les impayés' if voit_tickets else 'Voir les tickets',
         'header_messages_plus': reverse('tickets:audit') if menu_audit else '',
     }
 
@@ -115,22 +124,47 @@ def _notifications(user):
             'icon': 'fa-warning',
             'tone': 'bg-warning',
         })
-    paiements = _paiements_visibles(user).exclude(statut=Paiement.Statut.SUCCES).order_by('-created_at')[:6]
+    paiements = _paiements_visibles(user).exclude(statut=Paiement.Statut.SUCCES).select_related('initiateur').order_by('-created_at')[:6]
+    peut_payer = user.is_admin_general or user.role in {
+        Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.COLLECTEUR, Role.COMMERCANT, Role.CONTROLEUR,
+    }
     for paiement in paiements:
         if paiement.statut == Paiement.Statut.EN_ATTENTE:
             icon, tone = 'fa-clock-o', 'bg-info'
+            desc = f'Demande de retrait au {paiement.numero_retrait} — {paiement.montant} GNF'
         else:
             icon, tone = 'fa-times', 'bg-danger'
-        peut_payer = user.is_admin_general or user.role in {
-            Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.COLLECTEUR, Role.COMMERCANT,
-        }
+            desc = f'{paiement.get_statut_display()} — {paiement.montant} GNF'
         items.append({
             'when': paiement.created_at,
             'name': paiement.commercant.nom,
-            'desc': f'{paiement.get_statut_display()} — {paiement.montant} GNF',
+            'desc': desc,
             'url': f"{reverse('tickets:payer')}?commercant={paiement.commercant_id}" if peut_payer else '',
             'icon': icon,
             'tone': tone,
+        })
+    succes = _paiements_visibles(user).filter(
+        statut=Paiement.Statut.SUCCES
+    ).select_related('initiateur').order_by('-confirmed_at')[:4]
+    for paiement in succes:
+        initiateur = paiement.initiateur
+        if paiement.mode == Paiement.Mode.CONTROLEUR and initiateur:
+            nom_par = initiateur.get_full_name() or initiateur.username
+            if user.role == Role.COMMERCANT:
+                desc = f'Payé pour vous par {nom_par} — {paiement.montant} GNF'
+            elif user.pk == initiateur.pk:
+                desc = f'Vous avez payé pour {paiement.commercant.nom} — {paiement.montant} GNF'
+            else:
+                desc = f'{nom_par} a payé pour {paiement.commercant.nom} — {paiement.montant} GNF'
+        else:
+            desc = f'Paiement confirmé, dépôt sur {paiement.numero_depot} — {paiement.montant} GNF'
+        items.append({
+            'when': paiement.confirmed_at or paiement.created_at,
+            'name': paiement.commercant.nom,
+            'desc': desc,
+            'url': reverse('tickets:recu', args=[paiement.mock_token]),
+            'icon': 'fa-check',
+            'tone': 'bg-success',
         })
     items.sort(key=lambda item: item['when'], reverse=True)
     return items[:8]
@@ -155,6 +189,10 @@ def _texte_audit(entry):
     details = []
     if payload.get('numero'):
         details.append(str(payload['numero']))
+    if payload.get('pour'):
+        details.append(f"pour {payload['pour']}")
+    if payload.get('par'):
+        details.append(f"par {payload['par']}")
     if payload.get('montant') is not None:
         details.append(f"{payload['montant']} GNF")
     if payload.get('nb') is not None:

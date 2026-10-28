@@ -29,7 +29,7 @@ User = get_user_model()
 class BaseSetup(TestCase):
     def setUp(self):
         self.jour = timezone.localdate()
-        self.commune = Commune.objects.create(nom='Kaloum', code='KAL')
+        self.commune = Commune.objects.create(nom='Kaloum', code='KAL', numero_depot='620999000')
         self.marche = Marche.objects.create(commune=self.commune, nom='Madina')
         PenaliteParametre.objects.create(marche=self.marche, montant_fixe=2000, pourcentage=0)
         self.boutique = TypePlace.objects.create(marche=self.marche, nom='Boutique')
@@ -46,7 +46,7 @@ class BaseSetup(TestCase):
         )
         self.controleur = User.objects.create_user(
             username='ctrl', password='x', telephone='62002', role=Role.CONTROLEUR,
-            commune=self.commune, marche=self.marche,
+            commune=self.commune, marche=self.marche, numero_om='624000002',
         )
 
 
@@ -175,6 +175,31 @@ class TicketEngineTests(BaseSetup):
         crees2 = generer_tickets_du_jour(self.marche, self.collecteur)
         self.assertEqual(len(crees2), 0)
 
+    def test_retrait_commercant_et_depot_commune(self):
+        emettre_ticket(self.place)
+        paiement = initier_paiement(self.fatou, initiateur=self.collecteur)
+        self.assertEqual(paiement.mode, Paiement.Mode.COMMERCANT)
+        self.assertEqual(paiement.numero_retrait, self.fatou.telephone)
+        self.assertEqual(paiement.numero_depot, self.commune.numero_depot)
+
+    def test_controleur_paie_sur_son_numero(self):
+        emettre_ticket(self.place)
+        paiement = initier_paiement(
+            self.fatou, initiateur=self.controleur, mode=Paiement.Mode.CONTROLEUR,
+        )
+        self.assertEqual(paiement.mode, Paiement.Mode.CONTROLEUR)
+        self.assertEqual(paiement.numero_retrait, self.controleur.numero_om)
+        callback_paiement(paiement, Paiement.Statut.SUCCES)
+        paiement.refresh_from_db()
+        self.assertEqual(paiement.statut, Paiement.Statut.SUCCES)
+
+    def test_paiement_refuse_sans_numero_de_depot(self):
+        self.commune.numero_depot = ''
+        self.commune.save(update_fields=['numero_depot'])
+        emettre_ticket(self.place)
+        with self.assertRaises(ValidationError):
+            initier_paiement(self.fatou)
+
     def test_cloisonnement_marche(self):
         autre_c = Commune.objects.create(nom='Kindia', code='KIN')
         autre_m = Marche.objects.create(commune=autre_c, nom='Central')
@@ -194,3 +219,36 @@ class WebSmokeTests(BaseSetup):
         self.client.login(username='col', password='x')
         r = self.client.get(reverse('marches:communes'))
         self.assertEqual(r.status_code, 403)
+
+    def test_commercant_paye_sur_son_numero(self):
+        compte = User.objects.create_user(
+            username='fatou', password='x', telephone='622999', role=Role.COMMERCANT,
+            commune=self.commune, marche=self.marche,
+        )
+        self.fatou.user = compte
+        self.fatou.save(update_fields=['user'])
+        emettre_ticket(self.place)
+        self.client.login(username='fatou', password='x')
+        page = self.client.get(reverse('tickets:payer'))
+        self.assertContains(page, 'Payé')
+        reponse = self.client.post(reverse('tickets:payer'))
+        self.assertEqual(reponse.status_code, 302)
+        paiement = Paiement.objects.get()
+        self.assertEqual(paiement.numero_retrait, self.fatou.telephone)
+        self.assertEqual(paiement.numero_depot, '620999000')
+        liste = self.client.get(reverse('tickets:tickets'))
+        self.assertContains(liste, 'Payé')
+        self.assertEqual(self.client.get(reverse('tickets:historique')).status_code, 200)
+        self.assertEqual(self.client.get(reverse('tickets:impayes')).status_code, 200)
+
+    def test_controleur_paie_pour_le_commercant_depuis_le_bouton(self):
+        emettre_ticket(self.place)
+        self.client.login(username='ctrl', password='x')
+        page = self.client.get(reverse('tickets:payer') + f'?commercant={self.fatou.pk}')
+        self.assertContains(page, 'Paie pour moi')
+        reponse = self.client.post(reverse('tickets:payer'), {'commercant': self.fatou.pk})
+        self.assertEqual(reponse.status_code, 302)
+        paiement = Paiement.objects.get()
+        self.assertEqual(paiement.mode, Paiement.Mode.CONTROLEUR)
+        self.assertEqual(paiement.numero_retrait, '624000002')
+        self.assertEqual(paiement.initiateur, self.controleur)

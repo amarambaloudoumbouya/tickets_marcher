@@ -32,6 +32,12 @@ class CustomUserManager(UserManager):
 
 class CustomUser(AbstractUser):
     telephone = models.CharField('téléphone', max_length=20, unique=True)
+    numero_om = models.CharField(
+        'numéro Orange Money',
+        max_length=20,
+        blank=True,
+        help_text='Numéro octroyé par la commune. La demande de retrait y est envoyée quand le contrôleur paie pour un commerçant.',
+    )
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.COLLECTEUR)
     commune = models.ForeignKey(
         'marches.Commune',

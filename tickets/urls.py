@@ -13,6 +13,7 @@ urlpatterns = [
     path('<int:pk>/penalite/annuler/', views.PenaliteAnnulerView.as_view(), name='penalite_annuler'),
     path('impayes/', views.ImpayesListView.as_view(), name='impayes'),
     path('payer/', views.PayerView.as_view(), name='payer'),
+    path('historique/', views.HistoriquePaiementView.as_view(), name='historique'),
     path('paiements/<str:token>/mock/', views.PaiementMockView.as_view(), name='paiement_mock'),
     path('paiements/<str:token>/recu/', views.RecuView.as_view(), name='recu'),
     path('controle/', views.ScanView.as_view(), name='scan'),

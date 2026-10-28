@@ -135,11 +135,18 @@ class Paiement(models.Model):
         ECHEC = 'echec', 'Échec'
         TIMEOUT = 'timeout', 'Timeout'
 
+    class Mode(models.TextChoices):
+        COMMERCANT = 'commercant', 'Payé par le commerçant'
+        CONTROLEUR = 'controleur', 'Payé par le contrôleur'
+
     reference = models.CharField(max_length=40, unique=True, editable=False)
     marche = models.ForeignKey('marches.Marche', on_delete=models.PROTECT, related_name='paiements')
     commercant = models.ForeignKey('recensement.Commercant', on_delete=models.PROTECT, related_name='paiements')
     montant = models.PositiveIntegerField()
     statut = models.CharField(max_length=16, choices=Statut.choices, default=Statut.EN_ATTENTE)
+    mode = models.CharField(max_length=16, choices=Mode.choices, default=Mode.COMMERCANT)
+    numero_retrait = models.CharField(max_length=20, blank=True)
+    numero_depot = models.CharField(max_length=20, blank=True)
     mock_token = models.CharField(max_length=64, unique=True)
     initiateur = models.ForeignKey(
         settings.AUTH_USER_MODEL,

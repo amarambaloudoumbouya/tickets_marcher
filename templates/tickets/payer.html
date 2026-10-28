@@ -13,9 +13,15 @@
 <div class="row small-spacing">
   <div class="col-md-8 col-md-offset-2 col-xs-12">
     <div class="box-content card">
-      <h4 class="box-title bg-warning"><i class="ico fa fa-credit-card"></i>Payer via Orange Money</h4>
+      <h4 class="box-title bg-warning"><i class="ico fa fa-credit-card"></i>{{ libelle_paiement }}</h4>
       <div class="card-content">
-        <p style="color:#7a869a;">Aucun encaissement en espèces. Le collecteur n’a pas d’argent dans les mains.</p>
+        {% if user.role == 'controleur' %}
+        <p style="color:#7a869a;">La demande de retrait est envoyée sur votre numéro Orange Money. Le dépôt va sur le numéro de la commune. Vous payez pour le commerçant.</p>
+        {% elif user.role == 'commercant' %}
+        <p style="color:#7a869a;">La demande de retrait est envoyée sur votre numéro. Le dépôt va sur le numéro Orange Money de la commune.</p>
+        {% else %}
+        <p style="color:#7a869a;">La demande de retrait est envoyée sur le numéro du commerçant. Le dépôt va sur le numéro de la commune.</p>
+        {% endif %}
 
         {% if user.role != 'commercant' %}
         <form method="get" style="margin-bottom:20px;">
@@ -30,7 +36,11 @@
         {% endif %}
 
         {% if commercant %}
-        <p style="margin-bottom:4px;"><strong>{{ commercant.nom }}</strong> · {{ commercant.telephone }}</p>
+        <p style="margin-bottom:4px;"><strong>{{ commercant.nom }}</strong></p>
+        <p style="margin:0 0 8px;color:#7a869a;">
+          Retrait : {{ numero_retrait|default:"numéro manquant" }}
+          · Dépôt commune : {{ numero_depot|default:"numéro manquant" }}
+        </p>
         <p style="margin:0 0 16px;font-size:32px;line-height:1.2;font-weight:600;color:#0f2f24;">{{ solde|intcomma }} GNF</p>
 
         <table class="table table-striped table-bordered">
@@ -61,8 +71,12 @@
         {% if solde %}
         <form method="post">{% csrf_token %}
           <input type="hidden" name="commercant" value="{{ commercant.pk }}">
-          <button type="submit" class="btn btn-primary btn-block waves-effect waves-light">Payer {{ solde|intcomma }} GNF</button>
+          <button type="submit" class="btn btn-primary btn-block waves-effect waves-light">
+            {% if user.role == 'controleur' %}Paie pour moi{% elif user.role == 'commercant' %}Payé{% else %}Payer{% endif %}
+            {{ solde|intcomma }} GNF
+          </button>
         </form>
+        <p style="margin-top:12px;color:#7a869a;">La confirmation se fait sur cette page, à la place du message reçu sur le téléphone.</p>
         {% endif %}
         {% elif user.role == 'commercant' %}
         <p>Aucune fiche commerçant n’est liée à ce compte.</p>

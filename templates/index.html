@@ -171,6 +171,8 @@
           <li class="{% if request.resolver_match.url_name == 'places' or request.resolver_match.url_name == 'place_create' %}current{% endif %}">
             <a class="waves-effect" href="{% url 'recensement:places' %}"><i class="menu-icon mdi mdi-map-marker"></i><span>Places</span></a>
           </li>
+          {% endif %}
+          {% if menu_collecteur or menu_mairie or menu_commercant or menu_controleur %}
           <li class="{% if request.resolver_match.url_name == 'tickets' or request.resolver_match.url_name == 'ticket_detail' %}current{% endif %}">
             <a class="waves-effect" href="{% url 'tickets:tickets' %}"><i class="menu-icon mdi mdi-ticket"></i><span>Tickets</span></a>
           </li>
@@ -180,7 +182,12 @@
           {% endif %}
           {% if menu_paiement %}
           <li class="{% if request.resolver_match.url_name == 'payer' %}current{% endif %}">
-            <a class="waves-effect" href="{% url 'tickets:payer' %}"><i class="menu-icon mdi mdi-credit-card"></i><span>Payer</span></a>
+            <a class="waves-effect" href="{% url 'tickets:payer' %}"><i class="menu-icon mdi mdi-credit-card"></i><span>{{ libelle_paiement }}</span></a>
+          </li>
+          {% endif %}
+          {% if menu_historique %}
+          <li class="{% if request.resolver_match.url_name == 'historique' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'tickets:historique' %}"><i class="menu-icon mdi mdi-history"></i><span>Historique</span></a>
           </li>
           {% endif %}
           {% if menu_controleur %}
@@ -253,11 +260,16 @@
             {% if menu_collecteur or menu_mairie %}
             <li><a href="{% url 'recensement:commercants' %}"><i class="fa fa-user"></i><span class="txt">Commerçants</span></a></li>
             <li><a href="{% url 'recensement:places' %}"><i class="fa fa-map-marker"></i><span class="txt">Places</span></a></li>
+            {% endif %}
+            {% if menu_collecteur or menu_mairie or menu_commercant or menu_controleur %}
             <li><a href="{% url 'tickets:tickets' %}"><i class="fa fa-ticket"></i><span class="txt">Tickets</span></a></li>
             <li><a href="{% url 'tickets:impayes' %}"><i class="fa fa-warning"></i><span class="txt">Impayés</span></a></li>
             {% endif %}
             {% if menu_paiement %}
-            <li><a href="{% url 'tickets:payer' %}"><i class="fa fa-credit-card"></i><span class="txt">Payer</span></a></li>
+            <li><a href="{% url 'tickets:payer' %}"><i class="fa fa-credit-card"></i><span class="txt">{{ libelle_paiement }}</span></a></li>
+            {% endif %}
+            {% if menu_historique %}
+            <li><a href="{% url 'tickets:historique' %}"><i class="fa fa-history"></i><span class="txt">Historique</span></a></li>
             {% endif %}
             {% if menu_controleur %}
             <li><a href="{% url 'tickets:scan' %}"><i class="fa fa-qrcode"></i><span class="txt">Contrôle QR</span></a></li>

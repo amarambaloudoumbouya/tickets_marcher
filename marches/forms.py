@@ -8,7 +8,12 @@ from marches.models import Commune, Marche, PenaliteParametre, Tarif, TypePlace
 class CommuneForm(forms.ModelForm):
     class Meta:
         model = Commune
-        fields = ['nom', 'code', 'active']
+        fields = ['nom', 'code', 'numero_depot', 'active']
+        labels = {'numero_depot': 'Numéro Orange Money (dépôts)'}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['numero_depot'].required = True
 
 
 class MarcheForm(forms.ModelForm):

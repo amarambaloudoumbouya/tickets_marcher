@@ -1,12 +1,25 @@
 {% extends "index.html" %}
 {% load humanize %}
 {% block content %}
+{% if messages %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">{{ message }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 <div class="row small-spacing">
   <div class="col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2 col-xs-12">
     <div class="box-content card">
       <h4 class="box-title bg-warning"><i class="ico fa fa-check"></i>Reçu Orange Money</h4>
       <div class="card-content" style="text-align:center;">
-        <p style="margin-bottom:4px;color:#1c6b4a;font-weight:600;">Paiement confirmé</p>
+        {% if paiement.mode == 'controleur' and paiement.initiateur %}
+        <p style="margin-bottom:4px;color:#1c6b4a;font-weight:600;">Paiement confirmé pour {{ paiement.commercant.nom }}, effectué par {{ paiement.initiateur.get_full_name|default:paiement.initiateur.username }}. Le dépôt est reçu sur {{ paiement.numero_depot }}.</p>
+        {% else %}
+        <p style="margin-bottom:4px;color:#1c6b4a;font-weight:600;">Paiement confirmé. Le dépôt est reçu sur {{ paiement.numero_depot }}.</p>
+        {% endif %}
         <p style="margin:0 0 8px;font-size:32px;line-height:1.2;font-weight:600;color:#0f2f24;">{{ paiement.montant|intcomma }} GNF</p>
         <p style="margin-bottom:4px;"><strong>{{ paiement.commercant.nom }}</strong></p>
         <p style="margin-bottom:20px;color:#7a869a;">

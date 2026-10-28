@@ -19,6 +19,7 @@
             <th>Jour</th>
             <th>Commerçant</th>
             <th>Dû</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -28,10 +29,20 @@
             <td>{{ ticket.date_validite|date:"d/m/Y" }}</td>
             <td>{{ ticket.commercant.nom }}</td>
             <td>{{ ticket.montant_du|intcomma }} GNF</td>
+            <td>
+              {% if user.role == 'controleur' %}
+              <form method="post" action="{% url 'tickets:payer' %}">{% csrf_token %}
+                <input type="hidden" name="commercant" value="{{ ticket.commercant_id }}">
+                <button type="submit" class="btn btn-primary btn-sm">Paie pour moi</button>
+              </form>
+              {% elif user.role == 'commercant' %}
+              <a class="btn btn-primary btn-sm" href="{% url 'tickets:payer' %}">Payé</a>
+              {% endif %}
+            </td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="4">Aucun impayé.</td>
+            <td colspan="5">Aucun impayé.</td>
           </tr>
           {% endfor %}
         </tbody>

@@ -3,6 +3,7 @@ from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.utils import timezone
 
+from accounts.models import Role
 from marches.models import PenaliteParametre
 from recensement.models import Place
 from tickets.models import (
@@ -124,18 +125,39 @@ def has_dettes_anterieures(commercant, marche, jour=None):
 
 
 @transaction.atomic
-def initier_paiement(commercant, initiateur=None, marche=None):
+def initier_paiement(commercant, initiateur=None, marche=None, mode=None):
     tickets = solde_tickets(commercant, marche)
     if not tickets:
         raise ValidationError('Aucun montant dû.')
     if Paiement.objects.filter(commercant=commercant, statut=Paiement.Statut.EN_ATTENTE).exists():
         raise ValidationError('Un paiement Orange Money est déjà en cours.')
+    marche = tickets[0].marche
+    commune = marche.commune
+    if not commune.numero_depot:
+        raise ValidationError('La commune n’a pas encore de numéro Orange Money pour recevoir les dépôts.')
+    if mode == Paiement.Mode.CONTROLEUR or (mode is None and initiateur and initiateur.role == Role.CONTROLEUR):
+        if not initiateur or initiateur.role != Role.CONTROLEUR:
+            raise ValidationError('Seul un contrôleur peut payer pour un commerçant.')
+        if initiateur.marche_id != commercant.marche_id:
+            raise ValidationError('Ce commerçant n’appartient pas à votre marché.')
+        if not (initiateur.numero_om or '').strip():
+            raise ValidationError('Aucun numéro Orange Money n’est enregistré pour ce contrôleur.')
+        numero_retrait = initiateur.numero_om.strip()
+        mode = Paiement.Mode.CONTROLEUR
+    else:
+        if not (commercant.telephone or '').strip():
+            raise ValidationError('Le commerçant n’a pas de numéro pour recevoir la demande de retrait.')
+        numero_retrait = commercant.telephone.strip()
+        mode = Paiement.Mode.COMMERCANT
     montant = montant_solde(tickets)
     paiement = Paiement.objects.create(
-        marche=tickets[0].marche,
+        marche=marche,
         commercant=commercant,
         montant=montant,
         initiateur=initiateur,
+        mode=mode,
+        numero_retrait=numero_retrait,
+        numero_depot=commune.numero_depot,
     )
     for ticket in tickets:
         PaiementLigne.objects.create(
@@ -146,7 +168,17 @@ def initier_paiement(commercant, initiateur=None, marche=None):
         )
         ticket.statut = StatutTicket.EN_ATTENTE_PAIEMENT
         ticket.save(update_fields=['statut'])
-    audit(initiateur, 'paiement_initie', paiement, montant=montant, tickets=[t.numero for t in tickets])
+    audit(
+        initiateur,
+        'paiement_initie',
+        paiement,
+        montant=montant,
+        tickets=[t.numero for t in tickets],
+        pour=commercant.nom,
+        mode=mode,
+        numero_retrait=numero_retrait,
+        numero_depot=commune.numero_depot,
+    )
     return paiement
 
 
@@ -172,7 +204,20 @@ def callback_paiement(paiement, resultat):
             else:
                 ticket.statut = StatutTicket.PAYE
             ticket.save(update_fields=['statut'])
-        audit(paiement.initiateur, 'paiement_succes', paiement, montant=paiement.montant)
+        par = ''
+        if paiement.initiateur_id:
+            par = paiement.initiateur.get_full_name() or paiement.initiateur.username
+        audit(
+            paiement.initiateur,
+            'paiement_succes',
+            paiement,
+            montant=paiement.montant,
+            pour=paiement.commercant.nom,
+            par=par,
+            mode=paiement.mode,
+            numero_retrait=paiement.numero_retrait,
+            numero_depot=paiement.numero_depot,
+        )
         return paiement
     if resultat == Paiement.Statut.TIMEOUT:
         paiement.statut = Paiement.Statut.TIMEOUT

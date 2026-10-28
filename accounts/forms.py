@@ -17,7 +17,7 @@ class UserForm(forms.ModelForm):
 
     class Meta:
         model = CustomUser
-        fields = ['username', 'first_name', 'last_name', 'telephone', 'email', 'role', 'commune', 'marche', 'is_active']
+        fields = ['username', 'first_name', 'last_name', 'telephone', 'email', 'role', 'commune', 'marche', 'numero_om', 'is_active']
 
     def __init__(self, *args, editor=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -31,6 +31,12 @@ class UserForm(forms.ModelForm):
         if not self.instance.pk:
             self.fields['password1'].required = True
             self.fields['password2'].required = True
+        self.fields['numero_om'].required = False
+        self.fields['numero_om'].label = 'Numéro Orange Money'
+        self.fields['numero_om'].help_text = (
+            'Octroyé par la commune au contrôleur. La demande de retrait y est envoyée '
+            'quand il paie pour un commerçant.'
+        )
         if not editor:
             return
         autorises = roles_creables(editor)
@@ -81,6 +87,10 @@ class UserForm(forms.ModelForm):
         if role not in roles_creables(editor):
             self.add_error('role', 'Vous ne pouvez pas attribuer ce rôle.')
             return cleaned
+        if role == Role.CONTROLEUR and not (cleaned.get('numero_om') or '').strip():
+            self.add_error('numero_om', 'Indiquez le numéro Orange Money octroyé par la commune.')
+        elif role != Role.CONTROLEUR:
+            cleaned['numero_om'] = ''
         if editor.is_admin_general:
             if role == Role.ADMIN_GENERAL:
                 cleaned['commune'] = None
@@ -138,6 +148,8 @@ class UserForm(forms.ModelForm):
             user.marche = None
         elif user.role in {Role.ADMIN_COMMUNE, Role.MAIRE}:
             user.marche = None
+        if user.role != Role.CONTROLEUR:
+            user.numero_om = ''
         if user.marche_id and not user.commune_id:
             user.commune_id = user.marche.commune_id
         if commit:
