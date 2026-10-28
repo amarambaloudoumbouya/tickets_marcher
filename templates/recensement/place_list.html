@@ -1,5 +1,4 @@
 {% extends "index.html" %}
-{% load crispy_forms_tags %}
 {% block content %}
 {% if messages %}
 <div class="row small-spacing">
@@ -15,10 +14,7 @@
     <h4 class="box-title bg-warning"><i class="ico fa fa-map-marker"></i>Places{% if marche %} — {{ marche }}{% endif %}</h4>
 
     <div class="card-content">
-      <p>Le recensement crée aussi le ticket du jour s’il n’existe pas encore.</p>
-      {% if peut_creer %}
-      <button type="button" class="btn btn-primary margin-bottom-10 waves-effect waves-light" data-toggle="modal" data-target="#boostrapModal-1">Nouvelle place</button>
-      {% endif %}
+      <p>La place est enregistrée pendant le <a href="{% url 'recensement:commercants' %}">recensement du commerçant</a>.</p>
     </div>
   </div>
 </div>
@@ -57,37 +53,4 @@
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block modals %}
-{% if peut_creer %}
-<div class="modal fade" id="boostrapModal-1" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
-	<div class="modal-dialog" role="document">
-		<div class="modal-content">
-			<form method="post" enctype="multipart/form-data" action="{% url 'recensement:places' %}">{% csrf_token %}
-				<div class="modal-header">
-					<button type="button" class="close" data-dismiss="modal" aria-label="Fermer"><span aria-hidden="true">&times;</span></button>
-					<h4 class="modal-title" id="myModalLabel">Nouvelle place</h4>
-				</div>
-				<div class="modal-body">
-					{{ form|crispy }}
-				</div>
-				<div class="modal-footer">
-					<button type="button" class="btn btn-default btn-sm waves-effect waves-light" data-dismiss="modal">Annuler</button>
-					<button type="submit" class="btn btn-primary btn-sm waves-effect waves-light">Enregistrer</button>
-				</div>
-			</form>
-		</div>
-	</div>
-</div>
-{% if ouvrir_modal %}
-<script>
-	document.addEventListener('DOMContentLoaded', function () {
-		if (window.jQuery) {
-			jQuery('#boostrapModal-1').modal('show');
-		}
-	});
-</script>
-{% endif %}
-{% endif %}
 {% endblock %}

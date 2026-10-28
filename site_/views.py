@@ -2,8 +2,9 @@ from io import BytesIO
 
 import qrcode
 from django.contrib import messages
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Count, ProtectedError, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -38,7 +39,7 @@ from accounts.models import (
     utilisateurs_visibles,
 )
 from marches.models import Commune, Marche, PenaliteParametre, Tarif, TypePlace
-from recensement.forms import CommercantForm, PlaceForm
+from recensement.forms import CommercantForm
 from recensement.models import Commercant, Place
 from tickets.forms import AnnulationForm, ScanForm
 from tickets.models import ClotureJournee, JournalAudit, Paiement, StatutTicket, Ticket
@@ -508,6 +509,21 @@ class PenaliteUpdateView(RoleRequiredMixin, UpdateView):
         return obj
 
 
+def _recenser(form, marche, user):
+    form.instance.marche = marche
+    form.instance.created_by = user
+    with transaction.atomic():
+        form.save()
+        return emettre_ticket(form.place, emetteur=user)
+
+
+def _message_recensement(request, ticket, created):
+    if created:
+        messages.success(request, f'Commerçant recensé et ticket {ticket.numero} émis.')
+    else:
+        messages.info(request, f'Commerçant recensé. Ticket du jour déjà existant : {ticket.numero}.')
+
+
 class CommercantListView(RoleRequiredMixin, ListView):
     allowed_roles = ROLES_COLLECTE | ROLES_MAIRIE
     model = Commercant
@@ -515,7 +531,7 @@ class CommercantListView(RoleRequiredMixin, ListView):
 
     def get_queryset(self):
         marche = marche_courant(self.request)
-        qs = Commercant.objects.filter(marche=marche) if marche else Commercant.objects.none()
+        qs = Commercant.objects.filter(marche=marche).prefetch_related('places__type_place') if marche else Commercant.objects.none()
         q = self.request.GET.get('q')
         if q:
             qs = qs.filter(Q(nom__icontains=q) | Q(telephone__icontains=q))
@@ -523,22 +539,25 @@ class CommercantListView(RoleRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['marche'] = marche_courant(self.request)
+        marche = marche_courant(self.request)
+        ctx['marche'] = marche
         ctx['peut_creer'] = self.request.user.is_admin_general or self.request.user.role in ROLES_COLLECTE
-        ctx.setdefault('form', CommercantForm())
+        ctx.setdefault('form', CommercantForm(marche=marche))
         return ctx
 
     def post(self, request, *args, **kwargs):
         if not (request.user.is_admin_general or request.user.role in ROLES_COLLECTE):
             raise PermissionDenied
-        form = CommercantForm(request.POST, request.FILES)
         marche = marche_courant(request)
+        form = CommercantForm(request.POST, request.FILES, marche=marche)
         if form.is_valid() and marche:
-            form.instance.marche = marche
-            form.instance.created_by = request.user
-            form.save()
-            messages.success(request, 'Commerçant recensé.')
-            return redirect('recensement:commercants')
+            try:
+                ticket, created = _recenser(form, marche, request.user)
+            except ValidationError as exc:
+                form.add_error(None, '; '.join(exc.messages))
+            else:
+                _message_recensement(request, ticket, created)
+                return redirect('recensement:commercants')
         if form.is_valid() and not marche:
             form.add_error(None, 'Choisissez un marché avant de recenser un commerçant.')
         self.object_list = self.get_queryset()
@@ -553,14 +572,26 @@ class CommercantCreateView(RoleRequiredMixin, CreateView):
     model = Commercant
     form_class = CommercantForm
     template_name = 'recensement/form.html'
-    extra_context = {'titre': 'Nouveau commerçant'}
+    extra_context = {'titre': 'Recensement'}
     success_url = reverse_lazy('recensement:commercants')
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['marche'] = marche_courant(self.request)
+        return kwargs
+
     def form_valid(self, form):
-        form.instance.marche = marche_courant(self.request)
-        form.instance.created_by = self.request.user
-        messages.success(self.request, 'Commerçant recensé.')
-        return super().form_valid(form)
+        marche = marche_courant(self.request)
+        if not marche:
+            form.add_error(None, 'Choisissez un marché avant de recenser un commerçant.')
+            return self.form_invalid(form)
+        try:
+            ticket, created = _recenser(form, marche, self.request.user)
+        except ValidationError as exc:
+            form.add_error(None, '; '.join(exc.messages))
+            return self.form_invalid(form)
+        _message_recensement(self.request, ticket, created)
+        return redirect(self.get_success_url())
 
 
 class PlaceListView(RoleRequiredMixin, ListView):
@@ -574,60 +605,18 @@ class PlaceListView(RoleRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        marche = marche_courant(self.request)
-        ctx['marche'] = marche
-        ctx['peut_creer'] = self.request.user.is_admin_general or self.request.user.role in ROLES_COLLECTE
-        ctx.setdefault('form', PlaceForm(marche=marche))
+        ctx['marche'] = marche_courant(self.request)
         return ctx
 
-    def post(self, request, *args, **kwargs):
-        if not (request.user.is_admin_general or request.user.role in ROLES_COLLECTE):
-            raise PermissionDenied
-        marche = marche_courant(request)
-        form = PlaceForm(request.POST, request.FILES, marche=marche)
-        if form.is_valid() and marche:
-            form.instance.marche = marche
-            form.instance.created_by = request.user
-            self.object = form.save()
-            ticket, created = emettre_ticket(self.object, emetteur=request.user)
-            if created:
-                messages.success(request, f'Place enregistrée et ticket {ticket.numero} émis.')
-            else:
-                messages.info(request, f'Place enregistrée. Ticket du jour déjà existant : {ticket.numero}.')
-            return redirect('recensement:places')
-        if form.is_valid() and not marche:
-            form.add_error(None, 'Choisissez un marché avant d’enregistrer une place.')
-        self.object_list = self.get_queryset()
-        ctx = self.get_context_data()
-        ctx['form'] = form
-        ctx['ouvrir_modal'] = True
-        return self.render_to_response(ctx)
 
-
-class PlaceCreateView(RoleRequiredMixin, CreateView):
+class PlaceCreateView(RoleRequiredMixin, View):
     allowed_roles = ROLES_COLLECTE
-    model = Place
-    form_class = PlaceForm
-    template_name = 'recensement/form.html'
-    extra_context = {'titre': 'Nouvelle place / déambulant'}
-    success_url = reverse_lazy('recensement:places')
 
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['marche'] = marche_courant(self.request)
-        return kwargs
+    def get(self, request, *args, **kwargs):
+        return redirect('recensement:commercants')
 
-    def form_valid(self, form):
-        marche = marche_courant(self.request)
-        form.instance.marche = marche
-        form.instance.created_by = self.request.user
-        response = super().form_valid(form)
-        ticket, created = emettre_ticket(self.object, emetteur=self.request.user)
-        if created:
-            messages.success(self.request, f'Place enregistrée et ticket {ticket.numero} émis.')
-        else:
-            messages.info(self.request, f'Place enregistrée. Ticket du jour déjà existant : {ticket.numero}.')
-        return response
+    def post(self, request, *args, **kwargs):
+        return redirect('recensement:commercants')
 
 
 class TicketListView(RoleRequiredMixin, ListView):

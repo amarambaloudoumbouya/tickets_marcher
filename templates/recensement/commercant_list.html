@@ -15,6 +15,7 @@
     <h4 class="box-title bg-warning"><i class="ico fa fa-user"></i>Commerçants{% if marche %} — {{ marche }}{% endif %}</h4>
 
     <div class="card-content">
+      <p>Le recensement enregistre le commerçant, sa place et le ticket du jour.</p>
       {% if peut_creer %}
       <button type="button" class="btn btn-primary margin-bottom-10 waves-effect waves-light" data-toggle="modal" data-target="#boostrapModal-1">Recenser</button>
       {% endif %}
@@ -35,6 +36,7 @@
           <tr>
             <th>Nom</th>
             <th>Téléphone Orange Money</th>
+            <th>Place</th>
             <th>Actif</th>
           </tr>
         </thead>
@@ -43,11 +45,16 @@
           <tr>
             <td>{{ commercant.nom }}</td>
             <td>{{ commercant.telephone }}</td>
+            <td>
+              {% for place in commercant.places.all %}
+              {{ place.code }} — {{ place.type_place.nom }}{% if not forloop.last %}<br>{% endif %}
+              {% empty %}—{% endfor %}
+            </td>
             <td>{% if commercant.actif %}Oui{% else %}Non{% endif %}</td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="3">Aucun commerçant.</td>
+            <td colspan="4">Aucun commerçant.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -65,7 +72,7 @@
 			<form method="post" enctype="multipart/form-data" action="{% url 'recensement:commercants' %}">{% csrf_token %}
 				<div class="modal-header">
 					<button type="button" class="close" data-dismiss="modal" aria-label="Fermer"><span aria-hidden="true">&times;</span></button>
-					<h4 class="modal-title" id="myModalLabel">Nouveau commerçant</h4>
+					<h4 class="modal-title" id="myModalLabel">Recensement</h4>
 				</div>
 				<div class="modal-body">
 					{{ form|crispy }}
