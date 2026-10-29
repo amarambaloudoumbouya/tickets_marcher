@@ -56,6 +56,7 @@ from tickets.services import (
     solde_tickets,
     verifier_qr,
 )
+from tickets.sms import mention_sms
 
 
 class DashboardView(LoginRequiredMixin, TemplateView):
@@ -519,7 +520,7 @@ def _recenser(form, marche, user):
 
 def _message_recensement(request, ticket, created):
     if created:
-        messages.success(request, f'Commerçant recensé et ticket {ticket.numero} émis.')
+        messages.success(request, f'Commerçant recensé et ticket {ticket.numero} émis.{mention_sms(ticket)}')
     else:
         messages.info(request, f'Commerçant recensé. Ticket du jour déjà existant : {ticket.numero}.')
 
@@ -699,7 +700,11 @@ class GenererTicketsView(RoleRequiredMixin, TemplateView):
     def post(self, request):
         marche = marche_courant(request)
         crees = generer_tickets_du_jour(marche, emetteur=request.user)
-        messages.success(request, f'{len(crees)} ticket(s) généré(s) pour aujourd’hui.')
+        envoyes = sum(1 for ticket in crees if getattr(ticket, 'sms_envoye', False))
+        messages.success(
+            request,
+            f'{len(crees)} ticket(s) généré(s) pour aujourd’hui. {envoyes} numéro(s) envoyé(s) par SMS.',
+        )
         return redirect('tickets:tickets')
 
 

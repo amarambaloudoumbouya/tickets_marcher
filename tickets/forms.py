@@ -7,7 +7,7 @@ class AnnulationForm(forms.Form):
 
 class ScanForm(forms.Form):
     payload = forms.CharField(label='QR / numéro de ticket', widget=forms.TextInput(attrs={
-        'placeholder': 'TKT-1-20260922-ABC123.signature ou numéro',
+        'placeholder': 'TKT-FC-B12-1-20261029-ABC123.signature ou numéro',
         'autofocus': True,
         'class': 'form-control form-control-lg',
     }))

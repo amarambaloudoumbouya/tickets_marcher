@@ -1,6 +1,8 @@
 import hmac
 import hashlib
+import re
 import secrets
+import unicodedata
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -33,6 +35,29 @@ IMMUTABLE_FIELDS = (
 )
 
 
+def _ascii_majuscules(texte):
+    normalise = unicodedata.normalize('NFD', texte or '')
+    sans_accent = ''.join(c for c in normalise if unicodedata.category(c) != 'Mn')
+    return sans_accent.upper()
+
+
+def initiales_commercant(nom):
+    """Première lettre de chaque prénom, puis celle du nom."""
+    mots = re.findall(r'[A-Z]+', _ascii_majuscules(nom))
+    if not mots:
+        return 'X'
+    if len(mots) == 1:
+        return mots[0][0]
+    return (''.join(mot[0] for mot in mots[:-1]) + mots[-1][0])[:8]
+
+
+def code_place_ticket(place):
+    if place is None:
+        return 'SP'
+    code = re.sub(r'[^A-Z0-9]', '', _ascii_majuscules(place.code))[:12]
+    return code or 'SP'
+
+
 def signer_numero(numero):
     digest = hmac.new(
         settings.SECRET_KEY.encode(),
@@ -43,7 +68,7 @@ def signer_numero(numero):
 
 
 class Ticket(models.Model):
-    numero = models.CharField(max_length=40, unique=True, editable=False)
+    numero = models.CharField(max_length=64, unique=True, editable=False)
     signature = models.CharField(max_length=16, editable=False)
     date_validite = models.DateField()
     marche = models.ForeignKey('marches.Marche', on_delete=models.PROTECT, related_name='tickets')
@@ -123,7 +148,9 @@ class Ticket(models.Model):
         elif not self.numero:
             jour = self.date_validite.strftime('%Y%m%d')
             alea = secrets.token_hex(3).upper()
-            self.numero = f'TKT-{self.marche_id}-{jour}-{alea}'
+            initiales = initiales_commercant(self.commercant.nom)
+            place = code_place_ticket(self.place if self.place_id else None)
+            self.numero = f'TKT-{initiales}-{place}-{self.marche_id}-{jour}-{alea}'
             self.signature = signer_numero(self.numero)
         super().save(*args, **kwargs)
 

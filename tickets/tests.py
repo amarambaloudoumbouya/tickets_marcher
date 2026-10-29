@@ -1,8 +1,10 @@
 from datetime import timedelta
+from unittest.mock import patch
+from urllib.parse import parse_qs
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -10,7 +12,7 @@ from accounts.mixins import marches_visibles
 from accounts.models import Role
 from marches.models import Commune, Marche, PenaliteParametre, Tarif, TypePlace
 from recensement.models import Commercant, Place
-from tickets.models import Paiement, StatutTicket, Ticket
+from tickets.models import Paiement, StatutTicket, Ticket, initiales_commercant
 from tickets.services import (
     annuler_ticket,
     callback_paiement,
@@ -51,6 +53,51 @@ class BaseSetup(TestCase):
 
 
 class TicketEngineTests(BaseSetup):
+    def test_numero_porte_initiales_et_place(self):
+        self.assertEqual(initiales_commercant('Aïssatou Mariama Diallo'), 'AMD')
+        self.assertEqual(initiales_commercant('Mamadou'), 'M')
+        self.fatou.nom = 'Fatou Camara'
+        self.fatou.save(update_fields=['nom'])
+        ticket, _ = emettre_ticket(self.place)
+        jour = ticket.date_validite.strftime('%Y%m%d')
+        self.assertRegex(
+            ticket.numero,
+            rf'^TKT-FC-B12-{self.marche.pk}-{jour}-[0-9A-F]{{6}}$',
+        )
+
+    @override_settings(
+        NIMBA_SMS_ACTIF=True,
+        NIMBA_SERVICE_ID='sid',
+        NIMBA_SECRET_TOKEN='secret',
+        NIMBA_SENDER_NAME='Tickets',
+    )
+    def test_sms_envoie_le_numero_de_ticket(self):
+        self.fatou.telephone = '622000111'
+        self.fatou.save(update_fields=['telephone'])
+
+        class Reponse:
+            status = 201
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return b'{}'
+
+        with patch('tickets.sms.urlopen', return_value=Reponse()) as appel:
+            with self.captureOnCommitCallbacks(execute=True):
+                ticket, created = emettre_ticket(self.place)
+        self.assertTrue(created)
+        self.assertTrue(ticket.sms_envoye)
+        corps = parse_qs(appel.call_args[0][0].data.decode())
+        self.assertEqual(corps['to'], ['224622000111'])
+        self.assertEqual(corps['sender_name'], ['Tickets'])
+        self.assertIn(ticket.numero, corps['message'][0])
+        self.assertIn('B12', corps['message'][0])
+
     def test_unicite_place_jour(self):
         t1, c1 = emettre_ticket(self.place, self.collecteur)
         t2, c2 = emettre_ticket(self.place, self.collecteur)

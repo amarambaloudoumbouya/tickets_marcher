@@ -2,6 +2,7 @@
 
 import os
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -38,8 +39,9 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'accounts.middleware.CompteVerrouilleMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'accounts.middleware.InactiviteMiddleware',
+    'accounts.middleware.CompteVerrouilleMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -109,5 +111,13 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'site_:dashboard'
 LOGOUT_REDIRECT_URL = 'accounts:login'
+DUREE_INACTIVITE = timedelta(minutes=15)
+
+NIMBA_SERVICE_ID = os.getenv('NIMBA_SERVICE_ID', '')
+NIMBA_SECRET_TOKEN = os.getenv('NIMBA_SECRET_TOKEN', '')
+NIMBA_SENDER_NAME = os.getenv('NIMBA_SENDER_NAME', '')
+NIMBA_SMS_ACTIF = bool(NIMBA_SERVICE_ID and NIMBA_SECRET_TOKEN and NIMBA_SENDER_NAME)
+if 'test' in sys.argv:
+    NIMBA_SMS_ACTIF = False
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

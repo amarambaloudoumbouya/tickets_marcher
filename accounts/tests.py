@@ -1,3 +1,5 @@
+import time
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -207,3 +209,29 @@ class HierarchieCreationTests(TestCase):
         self.assertContains(page, 'admin_marche')
         self.assertNotContains(page, 'admin_commune')
         self.assertNotContains(page, 'maire')
+
+
+class InactiviteSessionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username='session', password='x', telephone='620888001', role=Role.ADMIN_GENERAL,
+        )
+
+    def test_quinze_minutes_sans_action_deconnecte(self):
+        self.client.force_login(self.user)
+        session = self.client.session
+        session['derniere_activite'] = time.time() - 16 * 60
+        session.save()
+        response = self.client.get(reverse('site_:dashboard'), follow=True)
+        self.assertEqual(response.redirect_chain[0][0], reverse('accounts:login'))
+        self.assertContains(response, '15 minutes sans activité')
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_une_action_recente_laisse_la_session_ouverte(self):
+        self.client.force_login(self.user)
+        session = self.client.session
+        session['derniere_activite'] = time.time() - 5 * 60
+        session.save()
+        response = self.client.get(reverse('site_:dashboard'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('_auth_user_id', self.client.session)

@@ -1,3 +1,5 @@
+import logging
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F, Q, Sum
@@ -18,6 +20,8 @@ from tickets.models import (
     Ticket,
     signer_numero,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def audit(user, action, instance=None, **payload):
@@ -83,7 +87,20 @@ def emettre_ticket(place, emetteur=None, jour=None, geo=None, photo=None):
         ticket.geo_lng = geo.get('lng')
     ticket.save()
     audit(emetteur, 'ticket_emis', ticket, numero=ticket.numero, montant=montant)
+    transaction.on_commit(lambda: _notifier_sms(ticket))
     return ticket, True
+
+
+def _notifier_sms(ticket):
+    from tickets.sms import envoyer_numero_ticket
+
+    try:
+        ok, detail = envoyer_numero_ticket(ticket)
+    except Exception:
+        logger.exception('Echec SMS pour le ticket %s', ticket.pk)
+        ok, detail = False, 'Le SMS n’a pas pu être envoyé.'
+    ticket.sms_envoye = ok
+    ticket.sms_detail = detail
 
 
 def generer_tickets_du_jour(marche, emetteur=None, jour=None):
