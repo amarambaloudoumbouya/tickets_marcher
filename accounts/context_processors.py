@@ -28,6 +28,8 @@ _ACTIONS = {
     'penalite_annulee': 'a annulé une pénalité',
     'ticket_impaye': 'a marqué un ticket impayé',
     'cloture_journee': 'a clôturé la journée',
+    'commercant_modifie': 'a modifié un commerçant',
+    'commercant_supprime': 'a supprimé un commerçant',
 }
 
 

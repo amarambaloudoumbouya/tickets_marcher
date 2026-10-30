@@ -10,7 +10,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
-from django.views.generic import CreateView, ListView, TemplateView, UpdateView, View
+from django.views.generic import CreateView, FormView, ListView, TemplateView, UpdateView, View
 
 from accounts.forms import UserForm
 from marches.forms import CommuneForm, MarcheForm, PenaliteForm, TarifForm, TypePlaceForm
@@ -39,7 +39,7 @@ from accounts.models import (
     utilisateurs_visibles,
 )
 from marches.models import Commune, Marche, PenaliteParametre, Tarif, TypePlace
-from recensement.forms import CommercantForm
+from recensement.forms import CommercantForm, CommercantSuppressionForm, CommercantUpdateForm
 from recensement.models import Commercant, Place
 from tickets.forms import AnnulationForm, ScanForm
 from tickets.models import ClotureJournee, JournalAudit, Paiement, StatutTicket, Ticket
@@ -532,7 +532,10 @@ class CommercantListView(RoleRequiredMixin, ListView):
 
     def get_queryset(self):
         marche = marche_courant(self.request)
-        qs = Commercant.objects.filter(marche=marche).prefetch_related('places__type_place') if marche else Commercant.objects.none()
+        qs = (
+            Commercant.objects.filter(marche=marche, supprime_le__isnull=True).prefetch_related('places__type_place')
+            if marche else Commercant.objects.none()
+        )
         q = self.request.GET.get('q')
         if q:
             qs = qs.filter(Q(nom__icontains=q) | Q(telephone__icontains=q))
@@ -542,7 +545,9 @@ class CommercantListView(RoleRequiredMixin, ListView):
         ctx = super().get_context_data(**kwargs)
         marche = marche_courant(self.request)
         ctx['marche'] = marche
-        ctx['peut_creer'] = self.request.user.is_admin_general or self.request.user.role in ROLES_COLLECTE
+        user = self.request.user
+        ctx['peut_creer'] = user.is_admin_general or user.role in ROLES_COLLECTE
+        ctx['peut_modifier'] = user.is_admin_general or user.role == Role.ADMIN_COMMUNE
         ctx.setdefault('form', CommercantForm(marche=marche))
         return ctx
 
@@ -595,6 +600,69 @@ class CommercantCreateView(RoleRequiredMixin, CreateView):
         return redirect(self.get_success_url())
 
 
+def commercants_geres(user):
+    qs = Commercant.objects.filter(supprime_le__isnull=True).select_related('marche__commune', 'user')
+    if user.is_admin_general:
+        return qs
+    if user.role == Role.ADMIN_COMMUNE and user.commune_id:
+        return qs.filter(marche__commune_id=user.commune_id)
+    return qs.none()
+
+
+class CommercantUpdateView(RoleRequiredMixin, UpdateView):
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
+    model = Commercant
+    form_class = CommercantUpdateForm
+    template_name = 'recensement/form.html'
+    extra_context = {'titre': 'Modifier le commerçant'}
+    success_url = reverse_lazy('recensement:commercants')
+
+    def get_queryset(self):
+        return commercants_geres(self.request.user)
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        audit(self.request.user, 'commercant_modifie', self.object)
+        messages.success(self.request, 'Commerçant modifié.')
+        return response
+
+
+class CommercantSuppressionView(RoleRequiredMixin, FormView):
+    allowed_roles = {Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE}
+    form_class = CommercantSuppressionForm
+    template_name = 'recensement/form.html'
+
+    def get_commercant(self):
+        if not hasattr(self, 'commercant'):
+            self.commercant = get_object_or_404(commercants_geres(self.request.user), pk=self.kwargs['pk'])
+        return self.commercant
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        commercant = self.get_commercant()
+        ctx['titre'] = f'Supprimer {commercant.nom}'
+        ctx['libelle_bouton'] = 'Supprimer'
+        ctx['classe_bouton'] = 'btn-danger'
+        return ctx
+
+    def form_valid(self, form):
+        commercant = self.get_commercant()
+        motif = form.cleaned_data['motif']
+        with transaction.atomic():
+            commercant.actif = False
+            commercant.motif_suppression = motif
+            commercant.supprime_le = timezone.now()
+            commercant.supprime_par = self.request.user
+            commercant.save(update_fields=['actif', 'motif_suppression', 'supprime_le', 'supprime_par'])
+            commercant.places.update(actif=False)
+            if commercant.user_id:
+                commercant.user.is_active = False
+                commercant.user.save(update_fields=['is_active'])
+            audit(self.request.user, 'commercant_supprime', commercant, motif=motif, pour=commercant.nom)
+        messages.success(self.request, f'« {commercant.nom} » a été supprimé.')
+        return redirect('recensement:commercants')
+
+
 class PlaceListView(RoleRequiredMixin, ListView):
     allowed_roles = ROLES_COLLECTE | ROLES_MAIRIE
     model = Place
@@ -602,7 +670,10 @@ class PlaceListView(RoleRequiredMixin, ListView):
 
     def get_queryset(self):
         marche = marche_courant(self.request)
-        return Place.objects.filter(marche=marche).select_related('commercant', 'type_place') if marche else Place.objects.none()
+        return (
+            Place.objects.filter(marche=marche, commercant__supprime_le__isnull=True).select_related('commercant', 'type_place')
+            if marche else Place.objects.none()
+        )
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -766,6 +837,7 @@ class PayerView(RoleRequiredMixin, TemplateView):
         commercant = get_object_or_404(
             Commercant.objects.select_related('marche__commune'),
             pk=cid,
+            supprime_le__isnull=True,
         )
         if not marches_visibles(user).filter(pk=commercant.marche_id).exists():
             raise PermissionDenied
@@ -776,7 +848,9 @@ class PayerView(RoleRequiredMixin, TemplateView):
         commercant = self._commercant()
         marche = marche_courant(self.request)
         ctx['commercant'] = commercant
-        ctx['commercants'] = Commercant.objects.filter(marche=marche, actif=True) if marche else []
+        ctx['commercants'] = (
+            Commercant.objects.filter(marche=marche, actif=True, supprime_le__isnull=True) if marche else []
+        )
         if commercant:
             dus = solde_tickets(commercant, commercant.marche)
             ctx['tickets_dus'] = dus
@@ -1060,7 +1134,7 @@ def resultats_recherche(user, q):
         commercants = commercants.filter(user=user)
     else:
         commercants = scoped_qs(commercants, user)
-    commercants = commercants.filter(Q(nom__icontains=q) | Q(telephone__icontains=q))[:8]
+    commercants = commercants.filter(supprime_le__isnull=True).filter(Q(nom__icontains=q) | Q(telephone__icontains=q))[:8]
     peut_payer = user.is_admin_general or user.role in {
         Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.COLLECTEUR, Role.COMMERCANT,
     }
@@ -1078,7 +1152,7 @@ def resultats_recherche(user, q):
         places = places.filter(commercant__user=user)
     else:
         places = scoped_qs(places, user)
-    places = places.filter(
+    places = places.filter(commercant__supprime_le__isnull=True).filter(
         Q(code__icontains=q) | Q(commercant__nom__icontains=q) | Q(commercant__telephone__icontains=q)
     )[:8]
     _ajouter(groupes, 'Places', [

@@ -17,7 +17,7 @@
       <div class="card-content">
         <form method="post" enctype="multipart/form-data">{% csrf_token %}
           {{ form|crispy }}
-          <button type="submit" class="btn btn-primary waves-effect waves-light">Enregistrer</button>
+          <button type="submit" class="btn {{ classe_bouton|default:'btn-primary' }} waves-effect waves-light">{{ libelle_bouton|default:"Enregistrer" }}</button>
           <a class="btn btn-default" href="javascript:history.back()">Annuler</a>
         </form>
       </div>

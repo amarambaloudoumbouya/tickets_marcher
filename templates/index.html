@@ -165,7 +165,7 @@
           </li>
           {% endif %}
           {% if menu_collecteur or menu_mairie %}
-          <li class="{% if request.resolver_match.url_name == 'commercants' or request.resolver_match.url_name == 'commercant_create' %}current{% endif %}">
+          <li class="{% if request.resolver_match.url_name == 'commercants' or request.resolver_match.url_name == 'commercant_create' or request.resolver_match.url_name == 'commercant_update' or request.resolver_match.url_name == 'commercant_supprimer' %}current{% endif %}">
             <a class="waves-effect" href="{% url 'recensement:commercants' %}"><i class="menu-icon mdi mdi-account"></i><span>Commerçants</span></a>
           </li>
           <li class="{% if request.resolver_match.url_name == 'places' or request.resolver_match.url_name == 'place_create' %}current{% endif %}">

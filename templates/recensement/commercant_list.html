@@ -38,6 +38,7 @@
             <th>Téléphone Orange Money</th>
             <th>Place</th>
             <th>Actif</th>
+            {% if peut_modifier %}<th></th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -51,10 +52,16 @@
               {% empty %}—{% endfor %}
             </td>
             <td>{% if commercant.actif %}Oui{% else %}Non{% endif %}</td>
+            {% if peut_modifier %}
+            <td>
+              <a href="{% url 'recensement:commercant_update' commercant.pk %}" class="btn btn-primary btn-sm" title="Modifier"><i class="fa fa-pencil"></i></a>
+              <a href="{% url 'recensement:commercant_supprimer' commercant.pk %}" class="btn btn-link btn-sm" title="Supprimer" style="color:#ea4335"><i class="fa fa-trash"></i></a>
+            </td>
+            {% endif %}
           </tr>
           {% empty %}
           <tr>
-            <td colspan="4">Aucun commerçant.</td>
+            <td colspan="{% if peut_modifier %}5{% else %}4{% endif %}">Aucun commerçant.</td>
           </tr>
           {% endfor %}
         </tbody>

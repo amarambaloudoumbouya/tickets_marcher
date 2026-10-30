@@ -55,6 +55,9 @@ class HierarchieCreationTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Commune.objects.filter(code='MAT').exists())
+        liste = self.client.get(reverse('marches:communes'))
+        self.assertContains(liste, 'Orange Money')
+        self.assertContains(liste, '620100010')
 
         response = self.client.post(reverse('site_:user_create'), self._compte(
             username='admin_matam',

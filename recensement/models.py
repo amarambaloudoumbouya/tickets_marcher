@@ -15,6 +15,15 @@ class Commercant(models.Model):
         related_name='fiche_commercant',
     )
     actif = models.BooleanField(default=True)
+    motif_suppression = models.TextField('motif de suppression', blank=True)
+    supprime_le = models.DateTimeField(null=True, blank=True)
+    supprime_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='commercants_supprimes',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -26,7 +35,6 @@ class Commercant(models.Model):
 
     class Meta:
         ordering = ['nom']
-        unique_together = [('marche', 'telephone')]
         verbose_name = 'commerçant'
         verbose_name_plural = 'commerçants'
 
@@ -57,7 +65,6 @@ class Place(models.Model):
 
     class Meta:
         ordering = ['code']
-        unique_together = [('marche', 'code')]
 
     def __str__(self):
         return f'{self.code} — {self.commercant.nom}'

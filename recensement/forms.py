@@ -30,13 +30,17 @@ class CommercantForm(forms.ModelForm):
 
     def clean_telephone(self):
         telephone = self.cleaned_data['telephone'].strip()
-        if self.marche and Commercant.objects.filter(marche=self.marche, telephone=telephone).exists():
+        if self.marche and Commercant.objects.filter(
+            marche=self.marche, telephone=telephone, supprime_le__isnull=True,
+        ).exists():
             raise forms.ValidationError('Ce téléphone est déjà recensé sur ce marché.')
         return telephone
 
     def clean_code(self):
         code = self.cleaned_data['code'].strip()
-        if self.marche and Place.objects.filter(marche=self.marche, code=code).exists():
+        if self.marche and Place.objects.filter(
+            marche=self.marche, code=code, commercant__supprime_le__isnull=True,
+        ).exists():
             raise forms.ValidationError('Ce code est déjà utilisé sur ce marché.')
         return code
 
@@ -53,3 +57,31 @@ class CommercantForm(forms.ModelForm):
                 created_by=commercant.created_by,
             )
         return commercant
+
+
+class CommercantUpdateForm(forms.ModelForm):
+    class Meta:
+        model = Commercant
+        fields = ['nom', 'telephone', 'photo', 'actif']
+        labels = {'photo': 'Photo du commerçant'}
+
+    def clean_telephone(self):
+        telephone = self.cleaned_data['telephone'].strip()
+        doublon = Commercant.objects.filter(
+            marche_id=self.instance.marche_id, telephone=telephone, supprime_le__isnull=True,
+        )
+        if self.instance.pk:
+            doublon = doublon.exclude(pk=self.instance.pk)
+        if doublon.exists():
+            raise forms.ValidationError('Ce téléphone est déjà recensé sur ce marché.')
+        return telephone
+
+
+class CommercantSuppressionForm(forms.Form):
+    motif = forms.CharField(label='Motif', widget=forms.Textarea(attrs={'rows': 3}))
+
+    def clean_motif(self):
+        motif = self.cleaned_data['motif'].strip()
+        if not motif:
+            raise forms.ValidationError('Indiquez le motif de la suppression.')
+        return motif
