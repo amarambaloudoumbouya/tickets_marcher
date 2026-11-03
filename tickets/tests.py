@@ -1,6 +1,6 @@
+import json
 from datetime import timedelta
 from unittest.mock import patch
-from urllib.parse import parse_qs
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -65,12 +65,7 @@ class TicketEngineTests(BaseSetup):
             rf'^TKT-FC-B12-{self.marche.pk}-{jour}-[0-9A-F]{{6}}$',
         )
 
-    @override_settings(
-        NIMBA_SMS_ACTIF=True,
-        NIMBA_SERVICE_ID='sid',
-        NIMBA_SECRET_TOKEN='secret',
-        NIMBA_SENDER_NAME='Tickets',
-    )
+    @override_settings(GFS_SMS_ACTIF=True, GFS_API_KEY='sk_test_cle')
     def test_sms_envoie_le_numero_de_ticket(self):
         self.fatou.telephone = '622000111'
         self.fatou.save(update_fields=['telephone'])
@@ -92,11 +87,14 @@ class TicketEngineTests(BaseSetup):
                 ticket, created = emettre_ticket(self.place)
         self.assertTrue(created)
         self.assertTrue(ticket.sms_envoye)
-        corps = parse_qs(appel.call_args[0][0].data.decode())
-        self.assertEqual(corps['to'], ['224622000111'])
-        self.assertEqual(corps['sender_name'], ['Tickets'])
-        self.assertIn(ticket.numero, corps['message'][0])
-        self.assertIn('B12', corps['message'][0])
+        requete = appel.call_args[0][0]
+        self.assertEqual(requete.full_url, 'https://api.globalflashsend.com/v1/sms')
+        self.assertEqual(requete.get_header('Authorization'), 'Bearer sk_test_cle')
+        corps = json.loads(requete.data.decode())
+        self.assertEqual(corps['to'], '+224622000111')
+        self.assertIn(ticket.numero, corps['text'])
+        self.assertIn('B12', corps['text'])
+        self.assertEqual(corps['reference'], ticket.numero)
 
     def test_unicite_place_jour(self):
         t1, c1 = emettre_ticket(self.place, self.collecteur)

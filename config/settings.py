@@ -113,11 +113,10 @@ LOGIN_REDIRECT_URL = 'site_:dashboard'
 LOGOUT_REDIRECT_URL = 'accounts:login'
 DUREE_INACTIVITE = timedelta(minutes=15)
 
-NIMBA_SERVICE_ID = os.getenv('NIMBA_SERVICE_ID', '')
-NIMBA_SECRET_TOKEN = os.getenv('NIMBA_SECRET_TOKEN', '')
-NIMBA_SENDER_NAME = os.getenv('NIMBA_SENDER_NAME', '')
-NIMBA_SMS_ACTIF = bool(NIMBA_SERVICE_ID and NIMBA_SECRET_TOKEN and NIMBA_SENDER_NAME)
+# Global Flash Send pour envoi de SMS
+GFS_API_KEY = os.getenv('GFS_API_KEY', '')
+GFS_SMS_ACTIF = bool(GFS_API_KEY)
 if 'test' in sys.argv:
-    NIMBA_SMS_ACTIF = False
+    GFS_SMS_ACTIF = False
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
