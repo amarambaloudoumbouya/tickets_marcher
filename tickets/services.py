@@ -101,6 +101,22 @@ def _notifier_sms(ticket):
         ok, detail = False, 'Le SMS n’a pas pu être envoyé.'
     ticket.sms_envoye = ok
     ticket.sms_detail = detail
+    if ok and ticket.pk:
+        Ticket.objects.filter(pk=ticket.pk).update(sms_envoye=True)
+
+
+def renvoyer_sms_en_attente(marche, jour=None, exclus=()):
+    """Envoie le numéro des tickets du jour dont le SMS n’est pas encore parti."""
+    jour = jour or timezone.localdate()
+    tickets = list(
+        Ticket.objects.filter(marche=marche, date_validite=jour, sms_envoye=False)
+        .exclude(statut=StatutTicket.ANNULE)
+        .exclude(pk__in=list(exclus))
+        .select_related('commercant', 'place')
+    )
+    for ticket in tickets:
+        _notifier_sms(ticket)
+    return tickets
 
 
 def generer_tickets_du_jour(marche, emetteur=None, jour=None):

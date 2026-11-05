@@ -10,7 +10,7 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-API_SMS = 'https://api.globalflashsend.com/v1/sms'
+API_SMS = 'https://globalflashsend.com/api/v1/sms'
 
 
 def numero_e164(telephone):
@@ -38,14 +38,21 @@ def mention_sms(ticket):
 
 
 def _detail_refus(exc):
+    message = ''
     try:
         payload = json.loads(exc.read().decode())
-        message = (payload.get('error') or {}).get('message')
     except Exception:
-        message = ''
+        payload = None
+    if isinstance(payload, dict):
+        erreur = payload.get('error')
+        if isinstance(erreur, dict):
+            message = erreur.get('message') or ''
+        elif isinstance(erreur, str):
+            message = erreur
+        message = message or payload.get('message') or ''
     if message:
         return f'Le SMS n’a pas pu être envoyé : {message}'
-    return 'Le SMS n’a pas pu être envoyé.'
+    return f'Le SMS n’a pas pu être envoyé (HTTP {getattr(exc, "code", "?")}).'
 
 
 def envoyer_numero_ticket(ticket):
@@ -71,7 +78,7 @@ def envoyer_numero_ticket(ticket):
     except HTTPError as exc:
         logger.warning('Global Flash Send a refusé le ticket %s', ticket.numero)
         return False, _detail_refus(exc)
-    except URLError:
+    except URLError as exc:
         logger.warning('Global Flash Send est injoignable pour le ticket %s', ticket.numero)
-        return False, 'Le SMS n’a pas pu être envoyé.'
+        return False, f'Le SMS n’a pas pu être envoyé : {exc.reason}'
     return True, ''

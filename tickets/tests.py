@@ -20,6 +20,7 @@ from tickets.services import (
     emettre_ticket,
     generer_tickets_du_jour,
     initier_paiement,
+    renvoyer_sms_en_attente,
     montant_solde,
     solde_tickets,
     verifier_qr,
@@ -88,13 +89,38 @@ class TicketEngineTests(BaseSetup):
         self.assertTrue(created)
         self.assertTrue(ticket.sms_envoye)
         requete = appel.call_args[0][0]
-        self.assertEqual(requete.full_url, 'https://api.globalflashsend.com/v1/sms')
+        self.assertEqual(requete.full_url, 'https://globalflashsend.com/api/v1/sms')
         self.assertEqual(requete.get_header('Authorization'), 'Bearer sk_test_cle')
         corps = json.loads(requete.data.decode())
         self.assertEqual(corps['to'], '+224622000111')
         self.assertIn(ticket.numero, corps['text'])
         self.assertIn('B12', corps['text'])
         self.assertEqual(corps['reference'], ticket.numero)
+
+    @override_settings(GFS_SMS_ACTIF=True, GFS_API_KEY='sk_test_cle')
+    def test_renvoi_sms_des_tickets_deja_crees(self):
+        class Reponse:
+            status = 201
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return b'{}'
+
+        self.fatou.telephone = '622000111'
+        self.fatou.save(update_fields=['telephone'])
+        with patch('tickets.sms.urlopen', return_value=Reponse()):
+            with self.captureOnCommitCallbacks(execute=True):
+                ticket, _ = emettre_ticket(self.place)
+            Ticket.objects.filter(pk=ticket.pk).update(sms_envoye=False)
+            relances = renvoyer_sms_en_attente(self.marche)
+            self.assertEqual([t.pk for t in relances], [ticket.pk])
+            self.assertTrue(relances[0].sms_envoye)
+            self.assertEqual(renvoyer_sms_en_attente(self.marche), [])
 
     def test_unicite_place_jour(self):
         t1, c1 = emettre_ticket(self.place, self.collecteur)

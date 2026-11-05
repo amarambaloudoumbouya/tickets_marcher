@@ -51,6 +51,7 @@ from tickets.services import (
     cloturer_journee,
     emettre_ticket,
     generer_tickets_du_jour,
+    renvoyer_sms_en_attente,
     initier_paiement,
     montant_solde,
     solde_tickets,
@@ -771,9 +772,11 @@ class GenererTicketsView(RoleRequiredMixin, TemplateView):
     def post(self, request):
         marche = marche_courant(request)
         crees = generer_tickets_du_jour(marche, emetteur=request.user)
-        envoyes = sum(1 for ticket in crees if getattr(ticket, 'sms_envoye', False))
+        relances = renvoyer_sms_en_attente(marche, exclus=[ticket.pk for ticket in crees])
+        suivis = list(crees) + list(relances)
+        envoyes = sum(1 for ticket in suivis if getattr(ticket, 'sms_envoye', False))
         raisons = []
-        for ticket in crees:
+        for ticket in suivis:
             if getattr(ticket, 'sms_envoye', False):
                 continue
             detail = getattr(ticket, 'sms_detail', '')

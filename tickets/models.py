@@ -115,6 +115,7 @@ class Ticket(models.Model):
         related_name='tickets_controles',
     )
     controle_at = models.DateTimeField(null=True, blank=True)
+    sms_envoye = models.BooleanField(default=False)
     penalite_annulee = models.BooleanField(default=False)
     motif_annulation_penalite = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
