@@ -5,7 +5,14 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
+try:
+    import MySQLdb  # noqa: F401
+except ImportError:
+    import pymysql
+    pymysql.install_as_MySQLdb()
+
 from dotenv import load_dotenv
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')

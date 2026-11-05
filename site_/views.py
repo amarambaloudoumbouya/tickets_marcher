@@ -772,10 +772,17 @@ class GenererTicketsView(RoleRequiredMixin, TemplateView):
         marche = marche_courant(request)
         crees = generer_tickets_du_jour(marche, emetteur=request.user)
         envoyes = sum(1 for ticket in crees if getattr(ticket, 'sms_envoye', False))
-        messages.success(
-            request,
-            f'{len(crees)} ticket(s) généré(s) pour aujourd’hui. {envoyes} numéro(s) envoyé(s) par SMS.',
-        )
+        raisons = []
+        for ticket in crees:
+            if getattr(ticket, 'sms_envoye', False):
+                continue
+            detail = getattr(ticket, 'sms_detail', '')
+            if detail and detail not in raisons:
+                raisons.append(detail)
+        texte = f'{len(crees)} ticket(s) généré(s) pour aujourd’hui. {envoyes} numéro(s) envoyé(s) par SMS.'
+        if raisons:
+            texte += ' ' + ' '.join(raisons)
+        messages.success(request, texte)
         return redirect('tickets:tickets')
 
 

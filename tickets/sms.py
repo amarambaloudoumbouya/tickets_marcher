@@ -37,10 +37,21 @@ def mention_sms(ticket):
     return f' {detail}' if detail else ''
 
 
+def _detail_refus(exc):
+    try:
+        payload = json.loads(exc.read().decode())
+        message = (payload.get('error') or {}).get('message')
+    except Exception:
+        message = ''
+    if message:
+        return f'Le SMS n’a pas pu être envoyé : {message}'
+    return 'Le SMS n’a pas pu être envoyé.'
+
+
 def envoyer_numero_ticket(ticket):
     """Envoie le numéro du ticket. Retourne (ok, detail). N'envoie rien si l'API n'est pas configurée."""
     if not getattr(settings, 'GFS_SMS_ACTIF', False):
-        return False, ''
+        return False, 'SMS non envoyé : ajoutez GFS_API_KEY dans le .env du serveur, puis redémarrez l’application.'
     destinataire = numero_e164(ticket.commercant.telephone)
     if not destinataire:
         return False, 'SMS non envoyé : le numéro du commerçant est invalide.'
@@ -57,9 +68,9 @@ def envoyer_numero_ticket(ticket):
         with urlopen(requete, timeout=10) as reponse:
             if reponse.status >= 400:
                 return False, 'Le SMS n’a pas pu être envoyé.'
-    except HTTPError:
+    except HTTPError as exc:
         logger.warning('Global Flash Send a refusé le ticket %s', ticket.numero)
-        return False, 'Le SMS n’a pas pu être envoyé.'
+        return False, _detail_refus(exc)
     except URLError:
         logger.warning('Global Flash Send est injoignable pour le ticket %s', ticket.numero)
         return False, 'Le SMS n’a pas pu être envoyé.'
