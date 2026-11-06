@@ -39,21 +39,26 @@ from accounts.models import (
     utilisateurs_visibles,
 )
 from marches.models import Commune, Marche, PenaliteParametre, Tarif, TypePlace
+from recensement.comptes import assurer_compte_commercant
 from recensement.forms import CommercantForm, CommercantSuppressionForm, CommercantUpdateForm
 from recensement.models import Commercant, Place
 from tickets.forms import AnnulationForm, ScanForm
-from tickets.models import ClotureJournee, JournalAudit, Paiement, StatutTicket, Ticket
+from tickets.models import AbsenceJour, ClotureJournee, DemandePaiement, JournalAudit, Paiement, StatutTicket, Ticket
 from tickets.services import (
+    annuler_demande_paie,
     annuler_penalite,
     annuler_ticket,
     audit,
     callback_paiement,
     cloturer_journee,
+    demander_paie_pour_moi,
     emettre_ticket,
     generer_tickets_du_jour,
+    peut_signaler_absence,
     renvoyer_sms_en_attente,
     initier_paiement,
     montant_solde,
+    signaler_absence,
     solde_tickets,
     verifier_qr,
 )
@@ -92,9 +97,20 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             dus = solde_tickets(fiche, marche)
             ctx['solde'] = montant_solde(dus)
             ctx['tickets_dus'] = dus
+            ctx['demande_paie'] = DemandePaiement.objects.filter(
+                commercant=fiche, statut=DemandePaiement.Statut.EN_ATTENTE,
+            ).first()
             detail = tickets.filter(commercant=fiche)
             paiements = paiements.filter(commercant=fiche)
             ctx['detail_personnel'] = True
+            ctx['absence_jour'] = AbsenceJour.objects.filter(commercant=fiche, date=jour).first()
+            possible, raison = peut_signaler_absence(fiche, jour)
+            ctx['peut_signaler_absence'] = possible
+            ctx['raison_absence'] = raison
+        elif user.role == Role.CONTROLEUR:
+            ctx['demandes_paie'] = DemandePaiement.objects.filter(
+                marche=marche, statut=DemandePaiement.Statut.EN_ATTENTE,
+            ).select_related('commercant')
         labels = dict(StatutTicket.choices)
         nb_total = detail.count()
         ctx['nb_annules'] = tickets.filter(statut=StatutTicket.ANNULE).count()
@@ -516,14 +532,22 @@ def _recenser(form, marche, user):
     form.instance.created_by = user
     with transaction.atomic():
         form.save()
-        return emettre_ticket(form.place, emetteur=user)
+        compte, mot_de_passe = assurer_compte_commercant(form.instance)
+        ticket, created = emettre_ticket(form.place, emetteur=user)
+    return ticket, created, mot_de_passe, compte
 
 
-def _message_recensement(request, ticket, created):
+def _message_recensement(request, ticket, created, mot_de_passe=None):
     if created:
-        messages.success(request, f'Commerçant recensé et ticket {ticket.numero} émis.{mention_sms(ticket)}')
+        texte = f'Commerçant recensé et ticket {ticket.numero} émis.{mention_sms(ticket)}'
     else:
-        messages.info(request, f'Commerçant recensé. Ticket du jour déjà existant : {ticket.numero}.')
+        texte = f'Commerçant recensé. Ticket du jour déjà existant : {ticket.numero}.'
+    if mot_de_passe:
+        texte += f' Compte créé. Identifiant et mot de passe initial : {mot_de_passe}.'
+    if created:
+        messages.success(request, texte)
+    else:
+        messages.info(request, texte)
 
 
 class CommercantListView(RoleRequiredMixin, ListView):
@@ -559,11 +583,11 @@ class CommercantListView(RoleRequiredMixin, ListView):
         form = CommercantForm(request.POST, request.FILES, marche=marche)
         if form.is_valid() and marche:
             try:
-                ticket, created = _recenser(form, marche, request.user)
+                ticket, created, mot_de_passe, _compte = _recenser(form, marche, request.user)
             except ValidationError as exc:
                 form.add_error(None, '; '.join(exc.messages))
             else:
-                _message_recensement(request, ticket, created)
+                _message_recensement(request, ticket, created, mot_de_passe)
                 return redirect('recensement:commercants')
         if form.is_valid() and not marche:
             form.add_error(None, 'Choisissez un marché avant de recenser un commerçant.')
@@ -593,11 +617,11 @@ class CommercantCreateView(RoleRequiredMixin, CreateView):
             form.add_error(None, 'Choisissez un marché avant de recenser un commerçant.')
             return self.form_invalid(form)
         try:
-            ticket, created = _recenser(form, marche, self.request.user)
+            ticket, created, mot_de_passe, _compte = _recenser(form, marche, self.request.user)
         except ValidationError as exc:
             form.add_error(None, '; '.join(exc.messages))
             return self.form_invalid(form)
-        _message_recensement(self.request, ticket, created)
+        _message_recensement(self.request, ticket, created, mot_de_passe)
         return redirect(self.get_success_url())
 
 
@@ -622,7 +646,14 @@ class CommercantUpdateView(RoleRequiredMixin, UpdateView):
         return commercants_geres(self.request.user)
 
     def form_valid(self, form):
-        response = super().form_valid(form)
+        ancien_telephone = Commercant.objects.get(pk=form.instance.pk).telephone
+        try:
+            with transaction.atomic():
+                response = super().form_valid(form)
+                assurer_compte_commercant(self.object, ancien_telephone=ancien_telephone)
+        except ValidationError as exc:
+            form.add_error(None, '; '.join(exc.messages))
+            return self.form_invalid(form)
         audit(self.request.user, 'commercant_modifie', self.object)
         messages.success(self.request, 'Commerçant modifié.')
         return response
@@ -783,10 +814,76 @@ class GenererTicketsView(RoleRequiredMixin, TemplateView):
             if detail and detail not in raisons:
                 raisons.append(detail)
         texte = f'{len(crees)} ticket(s) généré(s) pour aujourd’hui. {envoyes} numéro(s) envoyé(s) par SMS.'
+        absents = AbsenceJour.objects.filter(marche=marche, date=timezone.localdate()).count()
+        if absents:
+            texte += f' {absents} commerçant(s) ont signalé une absence : aucun ticket pour eux.'
         if raisons:
             texte += ' ' + ' '.join(raisons)
         messages.success(request, texte)
         return redirect('tickets:tickets')
+
+
+class AbsenceView(RoleRequiredMixin, TemplateView):
+    allowed_roles = {Role.COMMERCANT}
+    template_name = 'tickets/absence.html'
+
+    def _fiche(self):
+        return getattr(self.request.user, 'fiche_commercant', None)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        fiche = self._fiche()
+        jour = timezone.localdate()
+        ctx['jour'] = jour
+        ctx['fiche'] = fiche
+        if fiche:
+            ctx['absence'] = AbsenceJour.objects.filter(commercant=fiche, date=jour).first()
+            possible, raison = peut_signaler_absence(fiche, jour)
+            ctx['possible'] = possible
+            ctx['raison'] = raison
+        return ctx
+
+    def post(self, request):
+        fiche = self._fiche()
+        if not fiche:
+            messages.error(request, 'Aucune fiche commerçant n’est liée à ce compte.')
+            return redirect('tickets:absence')
+        try:
+            signaler_absence(
+                fiche,
+                request.POST.get('latitude'),
+                request.POST.get('longitude'),
+                precision=request.POST.get('precision'),
+            )
+        except ValidationError as exc:
+            messages.error(request, '; '.join(exc.messages))
+            return redirect('tickets:absence')
+        messages.success(
+            request,
+            'Absence enregistrée. Aucun ticket ne sera émis aujourd’hui. Votre position a été transmise pour contrôle.',
+        )
+        return redirect('tickets:absence')
+
+
+class AbsenceListView(RoleRequiredMixin, ListView):
+    allowed_roles = ROLES_COLLECTE | ROLES_MAIRIE | ROLES_CONTROLE
+    model = AbsenceJour
+    template_name = 'tickets/absence_list.html'
+
+    def get_queryset(self):
+        marche = marche_courant(self.request)
+        if not marche:
+            return AbsenceJour.objects.none()
+        return (
+            AbsenceJour.objects.filter(marche=marche, date=timezone.localdate())
+            .select_related('commercant')
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['marche'] = marche_courant(self.request)
+        ctx['jour'] = timezone.localdate()
+        return ctx
 
 
 class ImpayesListView(RoleRequiredMixin, ListView):
@@ -870,10 +967,37 @@ class PayerView(RoleRequiredMixin, TemplateView):
                 ctx['numero_retrait'] = self.request.user.numero_om
             else:
                 ctx['numero_retrait'] = commercant.telephone
+            ctx['demande_paie'] = DemandePaiement.objects.filter(
+                commercant=commercant, statut=DemandePaiement.Statut.EN_ATTENTE,
+            ).first()
+        if self.request.user.role == Role.CONTROLEUR and marche:
+            ctx['demandes_paie'] = DemandePaiement.objects.filter(
+                marche=marche, statut=DemandePaiement.Statut.EN_ATTENTE,
+            ).select_related('commercant')
         return ctx
 
     def post(self, request, *args, **kwargs):
         commercant = self._commercant()
+        action = request.POST.get('action') or 'payer'
+        if action == 'annuler_demande':
+            if request.user.role != Role.COMMERCANT or not commercant:
+                raise PermissionDenied
+            annuler_demande_paie(commercant, request.user)
+            messages.success(request, 'Demande annulée. Vous pouvez payer depuis votre numéro.')
+            return redirect('tickets:payer')
+        if action == 'paie_pour_moi':
+            if request.user.role != Role.COMMERCANT or not commercant:
+                raise PermissionDenied
+            try:
+                demander_paie_pour_moi(commercant, request.user)
+            except Exception as exc:
+                messages.error(request, str(exc))
+                return redirect('tickets:payer')
+            messages.success(
+                request,
+                'Demande envoyée au contrôleur. Il paie pour vous depuis son numéro Orange Money.',
+            )
+            return redirect('tickets:payer')
         if not commercant:
             messages.error(request, 'Choisissez un commerçant.')
             return redirect('tickets:payer')

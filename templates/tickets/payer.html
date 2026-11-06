@@ -18,7 +18,7 @@
         {% if user.role == 'controleur' %}
         <p style="color:#7a869a;">La demande de retrait est envoyée sur votre numéro Orange Money. Le dépôt va sur le numéro de la commune. Vous payez pour le commerçant.</p>
         {% elif user.role == 'commercant' %}
-        <p style="color:#7a869a;">La demande de retrait est envoyée sur votre numéro. Le dépôt va sur le numéro Orange Money de la commune.</p>
+        <p style="color:#7a869a;">Vous pouvez payer depuis votre numéro Orange Money, ou demander au contrôleur de payer pour vous. Le dépôt va sur le numéro de la commune.</p>
         {% else %}
         <p style="color:#7a869a;">La demande de retrait est envoyée sur le numéro du commerçant. Le dépôt va sur le numéro de la commune.</p>
         {% endif %}
@@ -33,6 +33,33 @@
             {% endfor %}
           </select>
         </form>
+        {% endif %}
+
+        {% if user.role == 'controleur' and demandes_paie %}
+        <p style="margin:16px 0 8px;font-weight:600;">Demandes des commerçants</p>
+        <table class="table table-striped table-bordered">
+          <thead>
+            <tr>
+              <th>Commerçant</th>
+              <th>Depuis</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for demande in demandes_paie %}
+            <tr>
+              <td>{{ demande.commercant.nom }}</td>
+              <td>{{ demande.created_at|date:"d/m/Y H:i" }}</td>
+              <td>
+                <form method="post">{% csrf_token %}
+                  <input type="hidden" name="commercant" value="{{ demande.commercant_id }}">
+                  <button type="submit" class="btn btn-primary btn-sm">Paie pour moi</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
         {% endif %}
 
         {% if commercant %}
@@ -71,11 +98,26 @@
         {% if solde %}
         <form method="post">{% csrf_token %}
           <input type="hidden" name="commercant" value="{{ commercant.pk }}">
+          <input type="hidden" name="action" value="payer">
           <button type="submit" class="btn btn-primary btn-block waves-effect waves-light">
-            {% if user.role == 'controleur' %}Paie pour moi{% elif user.role == 'commercant' %}Payé{% else %}Payer{% endif %}
+            {% if user.role == 'controleur' %}Paie pour moi{% else %}Payer{% endif %}
             {{ solde|intcomma }} GNF
           </button>
         </form>
+        {% if user.role == 'commercant' %}
+          {% if demande_paie %}
+          <p style="margin-top:12px;">Demande envoyée au contrôleur. Il paie pour vous depuis son numéro Orange Money.</p>
+          <form method="post" style="margin-top:8px;">{% csrf_token %}
+            <input type="hidden" name="action" value="annuler_demande">
+            <button type="submit" class="btn btn-default btn-block">Annuler la demande</button>
+          </form>
+          {% else %}
+          <form method="post" style="margin-top:8px;">{% csrf_token %}
+            <input type="hidden" name="action" value="paie_pour_moi">
+            <button type="submit" class="btn btn-default btn-block">Paie pour moi</button>
+          </form>
+          {% endif %}
+        {% endif %}
         <p style="margin-top:12px;color:#7a869a;">La confirmation se fait sur cette page, à la place du message reçu sur le téléphone.</p>
         {% endif %}
         {% elif user.role == 'commercant' %}

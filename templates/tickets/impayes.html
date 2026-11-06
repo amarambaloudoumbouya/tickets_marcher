@@ -36,7 +36,7 @@
                 <button type="submit" class="btn btn-primary btn-sm">Paie pour moi</button>
               </form>
               {% elif user.role == 'commercant' %}
-              <a class="btn btn-primary btn-sm" href="{% url 'tickets:payer' %}">Payé</a>
+              <a class="btn btn-primary btn-sm" href="{% url 'tickets:payer' %}">Payer</a>
               {% endif %}
             </td>
           </tr>

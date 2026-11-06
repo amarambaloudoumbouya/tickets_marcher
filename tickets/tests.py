@@ -1,5 +1,5 @@
 import json
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -20,6 +20,7 @@ from tickets.services import (
     emettre_ticket,
     generer_tickets_du_jour,
     initier_paiement,
+    signaler_absence,
     renvoyer_sms_en_attente,
     montant_solde,
     solde_tickets,
@@ -301,8 +302,9 @@ class WebSmokeTests(BaseSetup):
         emettre_ticket(self.place)
         self.client.login(username='fatou', password='x')
         page = self.client.get(reverse('tickets:payer'))
-        self.assertContains(page, 'Payé')
-        reponse = self.client.post(reverse('tickets:payer'))
+        self.assertContains(page, 'Payer')
+        self.assertContains(page, 'Paie pour moi')
+        reponse = self.client.post(reverse('tickets:payer'), {'action': 'payer'})
         self.assertEqual(reponse.status_code, 302)
         paiement = Paiement.objects.get()
         self.assertEqual(paiement.numero_retrait, self.fatou.telephone)
@@ -323,3 +325,83 @@ class WebSmokeTests(BaseSetup):
         self.assertEqual(paiement.mode, Paiement.Mode.CONTROLEUR)
         self.assertEqual(paiement.numero_retrait, '624000002')
         self.assertEqual(paiement.initiateur, self.controleur)
+
+    def test_le_commercant_peut_aussi_demander_paie_pour_moi(self):
+        compte = User.objects.create_user(
+            username='fatou', password='x', telephone='622999', role=Role.COMMERCANT,
+            commune=self.commune, marche=self.marche,
+        )
+        self.fatou.user = compte
+        self.fatou.save(update_fields=['user'])
+        emettre_ticket(self.place)
+        self.client.login(username='fatou', password='x')
+        reponse = self.client.post(reverse('tickets:payer'), {'action': 'paie_pour_moi'})
+        self.assertEqual(reponse.status_code, 302)
+        self.assertFalse(Paiement.objects.exists())
+        self.client.login(username='ctrl', password='x')
+        page = self.client.get(reverse('tickets:payer'))
+        self.assertContains(page, 'Demandes des commerçants')
+        self.assertContains(page, 'Fatou')
+        reponse = self.client.post(reverse('tickets:payer'), {'commercant': self.fatou.pk, 'action': 'payer'})
+        self.assertEqual(reponse.status_code, 302)
+        paiement = Paiement.objects.get()
+        self.assertEqual(paiement.mode, Paiement.Mode.CONTROLEUR)
+        self.assertEqual(paiement.numero_retrait, '624000002')
+        from tickets.models import DemandePaiement
+        demande = DemandePaiement.objects.get()
+        self.assertEqual(demande.statut, DemandePaiement.Statut.ACCEPTEE)
+        self.assertEqual(demande.paiement, paiement)
+
+
+class AbsenceTests(BaseSetup):
+    def matin(self):
+        return timezone.make_aware(datetime.combine(self.jour, time(9, 30)))
+
+    def test_avant_midi_aucun_ticket_n_est_emis(self):
+        autre = Commercant.objects.create(marche=self.marche, nom='Mamadou', telephone='622222')
+        Place.objects.create(
+            marche=self.marche, type_place=self.boutique, code='B13', commercant=autre,
+        )
+        signaler_absence(self.fatou, '9.509167', '-13.712222', precision='12', maintenant=self.matin())
+        crees = generer_tickets_du_jour(self.marche, self.collecteur, jour=self.jour)
+        self.assertEqual([ticket.commercant for ticket in crees], [autre])
+        self.assertFalse(Ticket.objects.filter(commercant=self.fatou).exists())
+
+    def test_apres_midi_ou_ticket_deja_envoye(self):
+        midi = timezone.make_aware(datetime.combine(self.jour, time(12, 0)))
+        with self.assertRaises(ValidationError):
+            signaler_absence(self.fatou, '9.5', '-13.7', maintenant=midi)
+        emettre_ticket(self.place)
+        with self.assertRaises(ValidationError):
+            signaler_absence(self.fatou, '9.5', '-13.7', maintenant=self.matin())
+
+    def test_la_position_est_obligatoire(self):
+        with self.assertRaises(ValidationError):
+            signaler_absence(self.fatou, '', '', maintenant=self.matin())
+
+    def test_le_commercant_signale_depuis_son_compte(self):
+        compte = User.objects.create_user(
+            username='fatou', password='x', telephone='622999', role=Role.COMMERCANT,
+            commune=self.commune, marche=self.marche,
+        )
+        self.fatou.user = compte
+        self.fatou.save(update_fields=['user'])
+        self.client.login(username='fatou', password='x')
+        matin = self.matin()
+        with patch('tickets.services.timezone.localtime', return_value=matin):
+            page = self.client.get(reverse('tickets:absence'))
+            self.assertContains(page, 'Je ne vends pas aujourd')
+            reponse = self.client.post(reverse('tickets:absence'), {
+                'latitude': '9.509167',
+                'longitude': '-13.712222',
+                'precision': '20',
+            })
+        self.assertEqual(reponse.status_code, 302)
+        from tickets.models import AbsenceJour
+        absence = AbsenceJour.objects.get()
+        self.assertEqual(str(absence.latitude), '9.509167')
+        self.assertEqual(str(absence.longitude), '-13.712222')
+        self.client.login(username='ctrl', password='x')
+        suivi = self.client.get(reverse('tickets:absences'))
+        self.assertContains(suivi, 'Fatou')
+        self.assertContains(suivi, 'openstreetmap.org')

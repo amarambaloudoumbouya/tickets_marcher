@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from accounts.mixins import scoped_qs
 from accounts.models import Role
-from tickets.models import JournalAudit, Paiement, StatutTicket, Ticket
+from tickets.models import AbsenceJour, DemandePaiement, JournalAudit, Paiement, StatutTicket, Ticket
 
 
 _ACTIONS = {
@@ -21,6 +21,9 @@ _ACTIONS = {
     'ticket_emis': 'a émis un ticket',
     'generation_tickets': 'a généré les tickets du jour',
     'paiement_initie': 'a initié un paiement',
+    'absence_signalee': 'a signalé une absence',
+    'demande_paie_pour_moi': 'a demandé un paie pour moi',
+    'demande_paie_annulee': 'a annulé une demande paie pour moi',
     'paiement_succes': 'a confirmé un paiement',
     'paiement_echec': 'a enregistré un échec de paiement',
     'ticket_controle': 'a contrôlé un ticket',
@@ -63,6 +66,8 @@ def role_menu(request):
         'menu_collecteur': menu_collecteur,
         'menu_controleur': menu_controleur,
         'menu_commercant': role == Role.COMMERCANT,
+        'menu_absence': role == Role.COMMERCANT,
+        'menu_suivi_absence': menu_collecteur or menu_mairie or menu_controleur,
         'menu_paiement': role in {
             Role.COMMERCANT, Role.CONTROLEUR, Role.COLLECTEUR,
             Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE,
@@ -71,11 +76,7 @@ def role_menu(request):
             Role.COMMERCANT, Role.CONTROLEUR, Role.COLLECTEUR,
             Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE, Role.MAIRE, Role.REGISSEUR,
         },
-        'libelle_paiement': (
-            'Payé' if role == Role.COMMERCANT else
-            'Paie pour moi' if role == Role.CONTROLEUR else
-            'Payer'
-        ),
+        'libelle_paiement': 'Paie pour moi' if role == Role.CONTROLEUR else 'Payer',
         'menu_cloture': role in {Role.REGISSEUR, Role.ADMIN_GENERAL, Role.ADMIN_COMMUNE, Role.ADMIN_MARCHE},
         'menu_audit': menu_audit,
         'header_notifications': _notifications(user),
@@ -116,6 +117,49 @@ def _paiements_visibles(user):
 
 def _notifications(user):
     items = []
+    if user.role == Role.CONTROLEUR and user.marche_id:
+        demandes = DemandePaiement.objects.filter(
+            marche_id=user.marche_id, statut=DemandePaiement.Statut.EN_ATTENTE,
+        ).select_related('commercant').order_by('-created_at')[:6]
+        for demande in demandes:
+            items.append({
+                'when': demande.created_at,
+                'name': demande.commercant.nom,
+                'desc': 'Demande Paie pour moi',
+                'url': f"{reverse('tickets:payer')}?commercant={demande.commercant_id}",
+                'icon': 'fa-credit-card',
+                'tone': 'bg-warning',
+            })
+    if user.role != Role.COMMERCANT and (user.marche_id or user.commune_id or user.is_admin_general):
+        absences = AbsenceJour.objects.filter(date=timezone.localdate()).select_related('commercant')
+        if user.marche_id:
+            absences = absences.filter(marche_id=user.marche_id)
+        elif user.commune_id and not user.is_admin_general:
+            absences = absences.filter(marche__commune_id=user.commune_id)
+        for absence in absences.order_by('-created_at')[:6]:
+            items.append({
+                'when': absence.created_at,
+                'name': absence.commercant.nom,
+                'desc': 'Absence signalée — position à contrôler',
+                'url': reverse('tickets:absences'),
+                'icon': 'fa-map-marker',
+                'tone': 'bg-warning',
+            })
+    elif user.role == Role.COMMERCANT:
+        fiche = _fiche(user)
+        if fiche:
+            demande = DemandePaiement.objects.filter(
+                commercant=fiche, statut=DemandePaiement.Statut.EN_ATTENTE,
+            ).first()
+            if demande:
+                items.append({
+                    'when': demande.created_at,
+                    'name': fiche.nom,
+                    'desc': 'Paie pour moi en attente du contrôleur',
+                    'url': reverse('tickets:payer'),
+                    'icon': 'fa-clock-o',
+                    'tone': 'bg-info',
+                })
     impayes = _tickets_visibles(user).filter(statut=StatutTicket.IMPAYE).order_by('-date_validite')[:6]
     for ticket in impayes:
         items.append({

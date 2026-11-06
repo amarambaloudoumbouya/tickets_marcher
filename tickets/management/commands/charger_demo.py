@@ -78,6 +78,9 @@ class Command(BaseCommand):
         aissatou, _ = Commercant.objects.get_or_create(
             marche=madina, telephone='622000333', defaults={'nom': 'Aissatou Diallo'}
         )
+        from recensement.comptes import assurer_compte_commercant
+        for commercant in (mamadou, aissatou):
+            assurer_compte_commercant(commercant)
         boutique = TypePlace.objects.get(marche=madina, nom='Boutique')
         table = TypePlace.objects.get(marche=madina, nom='Table')
         deamb = TypePlace.objects.get(marche=madina, nom='Déambulant')
@@ -90,6 +93,7 @@ class Command(BaseCommand):
         from tickets.services import generer_tickets_du_jour
         n = len(generer_tickets_du_jour(madina))
         self.stdout.write(self.style.SUCCESS(
-            'Démo prête. Connexions : admin / collecteur / controleur / regisseur / maire / fatou — mot de passe Demo1234!'
+            'Démo prête. Connexions : admin / collecteur / controleur / regisseur / maire / fatou — mot de passe Demo1234! '
+            'Mamadou et Aissatou : identifiant et mot de passe = leur téléphone (622000222, 622000333).'
         ))
         self.stdout.write(f'Admin pk={admin.pk}, marché Madina pk={madina.pk}, tickets du jour générés: {n}')

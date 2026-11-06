@@ -1,7 +1,9 @@
 import logging
+from datetime import time
+from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import F, Q, Sum
 from django.utils import timezone
 
@@ -12,16 +14,20 @@ from tickets.models import (
     STATUTS_DU,
     STATUTS_EN_REGLE_JOUR,
     STATUTS_OUVERTS,
+    AbsenceJour,
     ClotureJournee,
     JournalAudit,
     Paiement,
     PaiementLigne,
     StatutTicket,
+    DemandePaiement,
     Ticket,
     signer_numero,
 )
 
 logger = logging.getLogger(__name__)
+
+HEURE_LIMITE_ABSENCE = time(12, 0)
 
 
 def audit(user, action, instance=None, **payload):
@@ -68,6 +74,8 @@ def emettre_ticket(place, emetteur=None, jour=None, geo=None, photo=None):
     jour = jour or timezone.localdate()
     if not place.actif or not place.commercant.actif:
         raise ValidationError('La place ou le commerçant est inactif.')
+    if AbsenceJour.objects.filter(commercant=place.commercant, date=jour).exists():
+        raise ValidationError('Ce commerçant a signalé qu’il ne vend pas ce jour. Aucun ticket n’est émis.')
     existant = ticket_existant(place, jour)
     if existant:
         return existant, False
@@ -126,14 +134,82 @@ def generer_tickets_du_jour(marche, emetteur=None, jour=None):
         statut__in=[StatutTicket.PAYE, StatutTicket.CONTROLE],
     ).update(statut=StatutTicket.EXPIRE)
     crees = []
+    absents = set(
+        AbsenceJour.objects.filter(marche=marche, date=jour).values_list('commercant_id', flat=True)
+    )
     for place in Place.objects.filter(marche=marche, actif=True, commercant__actif=True).select_related(
         'type_place', 'commercant'
     ):
+        if place.commercant_id in absents:
+            continue
         ticket, created = emettre_ticket(place, emetteur=emetteur, jour=jour)
         if created:
             crees.append(ticket)
     audit(emetteur, 'generation_tickets', marche, jour=str(jour), nb=len(crees))
     return crees
+
+
+def _coordonnee(valeur, bas, haut):
+    if valeur in (None, ''):
+        raise ValidationError('La position est obligatoire pour le contrôle.')
+    try:
+        nombre = Decimal(str(valeur).replace(',', '.'))
+    except InvalidOperation:
+        raise ValidationError('La position est obligatoire pour le contrôle.')
+    if nombre < bas or nombre > haut:
+        raise ValidationError('La position est obligatoire pour le contrôle.')
+    return nombre.quantize(Decimal('0.000001'))
+
+
+def peut_signaler_absence(commercant, jour=None, maintenant=None):
+    jour = jour or timezone.localdate()
+    maintenant = maintenant or timezone.localtime()
+    if AbsenceJour.objects.filter(commercant=commercant, date=jour).exists():
+        return False, 'Vous avez déjà signalé que vous ne vendez pas aujourd’hui.'
+    if maintenant.date() != jour or maintenant.time() >= HEURE_LIMITE_ABSENCE:
+        return False, 'Le signalement se fait avant 12 h, le jour même.'
+    if Ticket.objects.filter(commercant=commercant, date_validite=jour).exclude(statut=StatutTicket.ANNULE).exists():
+        return False, 'Le ticket du jour est déjà envoyé. Il est trop tard pour signaler une absence.'
+    return True, ''
+
+
+def signaler_absence(commercant, latitude, longitude, precision=None, jour=None, maintenant=None):
+    jour = jour or timezone.localdate()
+    maintenant = maintenant or timezone.localtime()
+    possible, raison = peut_signaler_absence(commercant, jour, maintenant)
+    if not possible:
+        raise ValidationError(raison)
+    lat = _coordonnee(latitude, Decimal('-90'), Decimal('90'))
+    lng = _coordonnee(longitude, Decimal('-180'), Decimal('180'))
+    precision_m = None
+    if precision not in (None, ''):
+        try:
+            precision_m = int(float(str(precision).replace(',', '.')))
+        except (TypeError, ValueError):
+            raise ValidationError('Précision de position invalide.')
+        if precision_m < 0:
+            raise ValidationError('Précision de position invalide.')
+    try:
+        absence = AbsenceJour.objects.create(
+            commercant=commercant,
+            marche=commercant.marche,
+            date=jour,
+            latitude=lat,
+            longitude=lng,
+            precision_m=precision_m,
+        )
+    except IntegrityError:
+        raise ValidationError('Vous avez déjà signalé que vous ne vendez pas aujourd’hui.')
+    audit(
+        getattr(commercant, 'user', None),
+        'absence_signalee',
+        absence,
+        pour=commercant.nom,
+        jour=str(jour),
+        latitude=str(lat),
+        longitude=str(lng),
+    )
+    return absence
 
 
 def solde_tickets(commercant, marche=None):
@@ -212,7 +288,51 @@ def initier_paiement(commercant, initiateur=None, marche=None, mode=None):
         numero_retrait=numero_retrait,
         numero_depot=commune.numero_depot,
     )
+    demandes = DemandePaiement.objects.filter(
+        commercant=commercant,
+        statut=DemandePaiement.Statut.EN_ATTENTE,
+    )
+    if mode == Paiement.Mode.CONTROLEUR:
+        demandes.update(statut=DemandePaiement.Statut.ACCEPTEE, controleur=initiateur, paiement=paiement)
+    else:
+        demandes.update(statut=DemandePaiement.Statut.ANNULEE)
     return paiement
+
+
+def demander_paie_pour_moi(commercant, demandeur):
+    fiche = getattr(demandeur, 'fiche_commercant', None)
+    if not demandeur or demandeur.role != Role.COMMERCANT or not fiche or fiche.pk != commercant.pk:
+        raise ValidationError('Seul le commerçant peut demander au contrôleur de payer pour lui.')
+    if not solde_tickets(commercant, commercant.marche):
+        raise ValidationError('Aucun montant dû.')
+    if Paiement.objects.filter(commercant=commercant, statut=Paiement.Statut.EN_ATTENTE).exists():
+        raise ValidationError('Un paiement Orange Money est déjà en cours.')
+    demande = DemandePaiement.objects.filter(
+        commercant=commercant,
+        statut=DemandePaiement.Statut.EN_ATTENTE,
+    ).first()
+    if demande:
+        return demande
+    demande = DemandePaiement.objects.create(
+        marche=commercant.marche,
+        commercant=commercant,
+        demandeur=demandeur,
+    )
+    audit(demandeur, 'demande_paie_pour_moi', demande, pour=commercant.nom)
+    return demande
+
+
+def annuler_demande_paie(commercant, user):
+    demande = DemandePaiement.objects.filter(
+        commercant=commercant,
+        statut=DemandePaiement.Statut.EN_ATTENTE,
+    ).first()
+    if not demande:
+        return None
+    demande.statut = DemandePaiement.Statut.ANNULEE
+    demande.save(update_fields=['statut'])
+    audit(user, 'demande_paie_annulee', demande, pour=commercant.nom)
+    return demande
 
 
 def _restaurer_lignes(paiement):

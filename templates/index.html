@@ -185,6 +185,16 @@
             <a class="waves-effect" href="{% url 'tickets:payer' %}"><i class="menu-icon mdi mdi-credit-card"></i><span>{{ libelle_paiement }}</span></a>
           </li>
           {% endif %}
+          {% if menu_absence %}
+          <li class="{% if request.resolver_match.url_name == 'absence' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'tickets:absence' %}"><i class="menu-icon mdi mdi-calendar-remove"></i><span>Je ne vends pas</span></a>
+          </li>
+          {% endif %}
+          {% if menu_suivi_absence %}
+          <li class="{% if request.resolver_match.url_name == 'absences' %}current{% endif %}">
+            <a class="waves-effect" href="{% url 'tickets:absences' %}"><i class="menu-icon mdi mdi-map-marker"></i><span>Absences</span></a>
+          </li>
+          {% endif %}
           {% if menu_historique %}
           <li class="{% if request.resolver_match.url_name == 'historique' %}current{% endif %}">
             <a class="waves-effect" href="{% url 'tickets:historique' %}"><i class="menu-icon mdi mdi-history"></i><span>Historique</span></a>
@@ -267,6 +277,12 @@
             {% endif %}
             {% if menu_paiement %}
             <li><a href="{% url 'tickets:payer' %}"><i class="fa fa-credit-card"></i><span class="txt">{{ libelle_paiement }}</span></a></li>
+            {% endif %}
+            {% if menu_absence %}
+            <li><a href="{% url 'tickets:absence' %}"><i class="fa fa-calendar-times-o"></i><span class="txt">Je ne vends pas</span></a></li>
+            {% endif %}
+            {% if menu_suivi_absence %}
+            <li><a href="{% url 'tickets:absences' %}"><i class="fa fa-map-marker"></i><span class="txt">Absences</span></a></li>
             {% endif %}
             {% if menu_historique %}
             <li><a href="{% url 'tickets:historique' %}"><i class="fa fa-history"></i><span class="txt">Historique</span></a></li>

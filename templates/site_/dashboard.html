@@ -239,12 +239,50 @@
   </div>
 </div>
 
+{% if absence_jour %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Vous ne vendez pas aujourd’hui</h4>
+      <p>Aucun ticket ne sera émis. <a href="{% url 'tickets:absence' %}">Voir le signalement</a></p>
+    </div>
+  </div>
+</div>
+{% elif peut_signaler_absence %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Vous ne venez pas vendre ?</h4>
+      <p>Signalez-le avant 12 h et avant l’envoi du ticket. Votre position sera transmise pour contrôle.</p>
+      <a class="btn btn-primary" href="{% url 'tickets:absence' %}">Je ne vends pas</a>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% if tickets_dus %}
 <div class="row small-spacing">
   <div class="col-xs-12">
     <div class="box-content">
       <h4 class="box-title">Solde dû : {{ solde|intcomma }} GNF</h4>
       <a class="btn btn-success" href="{% url 'tickets:payer' %}">{{ libelle_paiement }}</a>
+      {% if demande_paie %}
+      <p style="margin-top:12px;">Demande Paie pour moi en attente du contrôleur.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% if demandes_paie %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    <div class="box-content">
+      <h4 class="box-title">Paie pour moi</h4>
+      {% for demande in demandes_paie %}
+      <form method="post" action="{% url 'tickets:payer' %}" style="margin-bottom:8px;">{% csrf_token %}
+        <input type="hidden" name="commercant" value="{{ demande.commercant_id }}">
+        <button type="submit" class="btn btn-primary btn-sm">{{ demande.commercant.nom }} — Paie pour moi</button>
+      </form>
+      {% endfor %}
     </div>
   </div>
 </div>

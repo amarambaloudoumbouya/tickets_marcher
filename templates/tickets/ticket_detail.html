@@ -49,6 +49,7 @@
       </div>
     </div>
 
+    {% if menu_collecteur or menu_cloture %}
     {% if ticket.statut == 'emis' or ticket.statut == 'en_attente_paiement' %}
     <div class="box-content card">
       <h4 class="box-title"><i class="ico fa fa-times"></i>Annuler le ticket</h4>
@@ -60,6 +61,7 @@
         </form>
       </div>
     </div>
+    {% endif %}
     {% endif %}
 
     {% if ticket.statut == 'impaye' and menu_cloture %}

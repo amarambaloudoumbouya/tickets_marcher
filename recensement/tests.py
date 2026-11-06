@@ -38,6 +38,12 @@ class RecensementUniqueTests(TestCase):
         self.assertEqual(place.type_place, self.boutique)
         self.assertEqual(place.marche, self.marche)
         self.assertTrue(Ticket.objects.filter(place=place, commercant=commercant).exists())
+        self.assertEqual(commercant.user.username, '622000999')
+        self.assertEqual(commercant.user.role, Role.COMMERCANT)
+        self.assertTrue(self.client.login(username='622000999', password='622000999'))
+        page = self.client.get(reverse('tickets:payer'))
+        self.assertContains(page, 'Payer')
+        self.assertContains(page, 'Paie pour moi')
 
     def test_lancien_formulaire_de_place_renvoie_au_recensement(self):
         self.client.force_login(self.collecteur)

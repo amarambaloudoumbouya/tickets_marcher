@@ -200,6 +200,49 @@ class Paiement(models.Model):
         super().save(*args, **kwargs)
 
 
+class DemandePaiement(models.Model):
+    """Le commerçant demande au contrôleur de payer à sa place."""
+
+    class Statut(models.TextChoices):
+        EN_ATTENTE = 'en_attente', 'En attente du contrôleur'
+        ACCEPTEE = 'acceptee', 'Acceptée'
+        ANNULEE = 'annulee', 'Annulée'
+
+    marche = models.ForeignKey('marches.Marche', on_delete=models.PROTECT, related_name='demandes_paiement')
+    commercant = models.ForeignKey(
+        'recensement.Commercant',
+        on_delete=models.PROTECT,
+        related_name='demandes_paiement',
+    )
+    demandeur = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='demandes_paie_pour_moi',
+    )
+    controleur = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='demandes_paie_acceptees',
+    )
+    paiement = models.ForeignKey(
+        Paiement,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='demandes',
+    )
+    statut = models.CharField(max_length=16, choices=Statut.choices, default=Statut.EN_ATTENTE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Paie pour moi — {self.commercant}'
+
+
 class PaiementLigne(models.Model):
     paiement = models.ForeignKey(Paiement, on_delete=models.CASCADE, related_name='lignes')
     ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT, related_name='lignes_paiement')
@@ -208,6 +251,38 @@ class PaiementLigne(models.Model):
 
     class Meta:
         unique_together = [('paiement', 'ticket')]
+
+
+class AbsenceJour(models.Model):
+    """Le commerçant ne vend pas ce jour-là. Aucun ticket n’est émis."""
+
+    commercant = models.ForeignKey(
+        'recensement.Commercant',
+        on_delete=models.PROTECT,
+        related_name='absences',
+    )
+    marche = models.ForeignKey('marches.Marche', on_delete=models.PROTECT, related_name='absences')
+    date = models.DateField()
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    precision_m = models.PositiveIntegerField('précision (m)', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['commercant', 'date'], name='absence_une_par_jour'),
+        ]
+
+    def __str__(self):
+        return f'{self.commercant} absent le {self.date}'
+
+    @property
+    def lien_carte(self):
+        return (
+            f'https://www.openstreetmap.org/?mlat={self.latitude}&mlon={self.longitude}'
+            f'#map=17/{self.latitude}/{self.longitude}'
+        )
 
 
 class ClotureJournee(models.Model):

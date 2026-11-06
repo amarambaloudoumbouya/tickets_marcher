@@ -1,0 +1,67 @@
+{% extends "index.html" %}
+{% block content %}
+{% if messages %}
+<div class="row small-spacing">
+  <div class="col-xs-12">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">{{ message }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+<div class="row small-spacing">
+  <div class="col-md-8 col-md-offset-2 col-xs-12">
+    <div class="box-content card">
+      <h4 class="box-title bg-warning"><i class="ico fa fa-calendar-times-o"></i>Je ne vends pas</h4>
+      <div class="card-content">
+        <p style="color:#7a869a;">Signalez avant 12 h, et avant l’envoi du ticket, que vous ne venez pas vendre aujourd’hui. Aucun ticket ne sera émis. Votre position est transmise pour contrôle.</p>
+        {% if not fiche %}
+        <p>Aucune fiche commerçant n’est liée à ce compte.</p>
+        {% elif absence %}
+        <p><strong>Absence enregistrée</strong> pour le {{ absence.date|date:"l d F Y" }} à {{ absence.created_at|date:"H:i" }}.</p>
+        <p>Position transmise{% if absence.precision_m %} (précision {{ absence.precision_m }} m){% endif %}.</p>
+        <p><a href="{{ absence.lien_carte }}" target="_blank" rel="noopener">Voir la position sur la carte</a></p>
+        {% elif possible %}
+        <form method="post" id="absence-form">{% csrf_token %}
+          <input type="hidden" name="latitude" id="latitude">
+          <input type="hidden" name="longitude" id="longitude">
+          <input type="hidden" name="precision" id="precision">
+          <button type="button" id="signaler" class="btn btn-primary btn-block waves-effect waves-light">Je ne vends pas aujourd’hui</button>
+        </form>
+        <p id="geo-erreur" style="display:none;margin-top:12px;color:#ea4335;"></p>
+        {% else %}
+        <p>{{ raison }}</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  const bouton = document.getElementById('signaler');
+  if (bouton) {
+    bouton.addEventListener('click', function () {
+      const erreur = document.getElementById('geo-erreur');
+      if (!navigator.geolocation) {
+        erreur.style.display = 'block';
+        erreur.textContent = 'Ce téléphone ne partage pas sa position. Le signalement est impossible sans position.';
+        return;
+      }
+      bouton.disabled = true;
+      bouton.textContent = 'Lecture de la position…';
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        document.getElementById('latitude').value = pos.coords.latitude;
+        document.getElementById('longitude').value = pos.coords.longitude;
+        document.getElementById('precision').value = Math.round(pos.coords.accuracy || 0);
+        document.getElementById('absence-form').submit();
+      }, function () {
+        bouton.disabled = false;
+        bouton.textContent = 'Je ne vends pas aujourd’hui';
+        erreur.style.display = 'block';
+        erreur.textContent = 'La position est obligatoire. Autorisez la localisation, puis réessayez.';
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    });
+  }
+</script>
+{% endblock %}
