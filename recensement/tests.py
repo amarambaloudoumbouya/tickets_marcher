@@ -45,6 +45,33 @@ class RecensementUniqueTests(TestCase):
         self.assertContains(page, 'Payer')
         self.assertContains(page, 'Paie pour moi')
 
+    def test_un_numero_deja_pris_ne_bloque_pas_la_creation_tolerante(self):
+        from django.core.exceptions import ValidationError
+
+        from recensement.comptes import assurer_compte_commercant
+
+        deja = Commercant.objects.create(marche=self.marche, nom='Doublon', telephone='62001')
+        with self.assertRaises(ValidationError):
+            assurer_compte_commercant(deja)
+        user, mot_de_passe = assurer_compte_commercant(deja, tolere_conflit=True)
+        self.assertEqual(user.username, '62001-{}'.format(deja.pk))
+        self.assertEqual(mot_de_passe, '62001')
+        self.assertNotEqual(user.pk, self.collecteur.pk)
+        self.assertTrue(user.check_password('62001'))
+
+    def test_rattache_le_compte_commercant_qui_existe_deja(self):
+        from recensement.comptes import assurer_compte_commercant
+
+        compte = User.objects.create_user(
+            username='622000888', password='secret', telephone='622000888',
+            role=Role.COMMERCANT, commune=self.marche.commune, marche=self.marche,
+        )
+        deja = Commercant.objects.create(marche=self.marche, nom='Awa Diallo', telephone='622000888')
+        user, mot_de_passe = assurer_compte_commercant(deja, tolere_conflit=True)
+        self.assertEqual(user.pk, compte.pk)
+        self.assertIsNone(mot_de_passe)
+        self.assertTrue(user.check_password('secret'))
+
     def test_lancien_formulaire_de_place_renvoie_au_recensement(self):
         self.client.force_login(self.collecteur)
         response = self.client.get(reverse('recensement:place_create'))
