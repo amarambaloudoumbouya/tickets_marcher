@@ -94,7 +94,7 @@ class TicketEngineTests(BaseSetup):
         self.assertEqual(requete.get_header('Authorization'), 'Bearer sk_test_cle')
         corps = json.loads(requete.data.decode())
         self.assertEqual(corps['to'], '+224622000111')
-        self.assertIn(ticket.numero, corps['text'])
+        self.assertTrue(corps['text'].startswith(f'Ticket marché\n{ticket.numero}.'))
         self.assertIn('B12', corps['text'])
         self.assertEqual(corps['reference'], ticket.numero)
 

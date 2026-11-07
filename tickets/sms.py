@@ -27,7 +27,7 @@ def numero_e164(telephone):
 
 def texte_ticket(ticket):
     place = f' Place {ticket.place.code}.' if ticket.place_id else ''
-    return f'Ticket marché {ticket.numero}.{place} {ticket.montant} GNF.'
+    return f'Ticket marché\n{ticket.numero}.{place} {ticket.montant} GNF.'
 
 
 def mention_sms(ticket):
